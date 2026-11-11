@@ -15,7 +15,8 @@ import { join } from "node:path";
 const DIR = "supabase/migrations";
 const DESTRUCTIVE = [
   /\bdrop\s+(table|schema|column|database|view|materialized\s+view|function|type|trigger|policy|index|extension)\b/i,
-  /\btruncate\b/i,
+  // a TRUNCATE statement - but not the words in "CREATE TRIGGER ... BEFORE TRUNCATE ON ..."
+  /(?<!before\s+)(?<!after\s+)\btruncate\b/i,
   /\bdelete\s+from\b/i,
   /\balter\s+table\b[\s\S]*?\balter\s+column\b[\s\S]*?\btype\b/i,
   /\balter\s+table\b[\s\S]*?\bdrop\b/i,

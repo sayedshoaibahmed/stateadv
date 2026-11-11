@@ -16,6 +16,8 @@
 | Security | scripts + review | RLS bypass, headers, secrets, dependencies | M9 + each release |
 | Restore drill | runbook | backup → restore → verify | before go-live, then quarterly |
 
+**M2-A status (2026-11-11):** database tests run today with **PGlite** (real PostgreSQL 18 compiled to WebAssembly, in memory, no Docker, never connected to Supabase) via `npm run test:db` and in CI through `npm test`: 143 tests in `tests/db`. They cover SEC-01..05, USR/OWN single-connection cases, AMT, CO, BID (non-concurrent), PLN, CAN, PAY, APR, REF, AUD, FIN-01..19 plus 250 random bookings against `src/lib/calc.ts`, COL-01/05/06/10/11*. `npm run check:mutations` deliberately weakens the migrations in 10 ways and requires the tests to fail each time. **Still to do (M2-D, GitHub Actions on real Postgres):** tests that need several simultaneous connections (BID-02/03, OWN-06, REF-04 race, APR-05), the RPC tests (M2-B), and pgTAP-style checks against the Supabase-managed pieces.
+
 **Golden fixture:** `supabase/tests/fixtures/golden.sql` with 3 resorts, about 40 bookings (both pricing methods, extras, discounts, adjustments, cancellations, no-shows) and about 100 payments/refunds in every status. `golden_expected.csv` holds the hand-calculated figures. The dashboard, reports and PDF summaries are asserted against it.
 
 Tests never run against production, and **no test data is ever left in the real development or production project** (O5):

@@ -34,6 +34,12 @@ Needs from the owner: GitHub access (private repo), a Supabase account for a **f
 - **Exit:** the app runs locally against Supabase dev, CI is green, and the money/date/calc tests pass.
 
 ## M2 — Database and Authentication
+**Sub-steps (each is reviewed before the next):**
+- **M2-A — schema, guards, views, RLS, storage (written + tested locally 2026-11-11; awaiting owner review; NOT applied to Supabase).** See `supabase/MIGRATION_REVIEW.md`.
+- M2-B — write functions (RPCs): booking ID, create/update/cancel booking, plan changes, payments, refunds, approvals, account management, recovery.
+- M2-C — apply to the dev project (after approval), login / password change / user management screens, first-Owner script.
+- M2-D — GitHub Actions database job on real Postgres, concurrency tests, M2 report.
+
 1. Migrations: extensions → enums → tables (incl. refunds, proofs, approval_history, booking_sequences per resort/year, payment_plan_revisions, expected_adjustments) → constraints (pricing, C/O, cancellation, adjustment) → indexes → triggers (audit, updated_at, prevent_delete, immutability, approval_guard, schedule_guard past-due lock, resort copy, plan-invariant and proof deferred checks, user_profiles_guard: self-disable / last Owner / O1–O2) → views (`booking_financials`, `expected_entries`) and functions (`booking_overdue`, `plan_preview`) → RPCs (incl. plan revision rules, `recover_owner_account`) → grants/revokes → RLS → storage buckets and policies.
 2. Seed: stay types (Resort Stay, Day Outing, Package), payment providers. **No test or placeholder Owner accounts are stored in the database** (O5): database tests create their users inside transactions that roll back. `scripts/create-first-user.ts` (creates only the owner's real first Owner account, refuses to run if any profile exists) and `scripts/recover-owner.ts` (with `--reset-mfa`).
 3. Auth: email/password login, proxy (`src/proxy.ts`), protected layout, logout, forced password change, user management (add/edit/disable/enable/reset) with self-disable block, Owner protection (Owner-only actions on Owners, password re-entry, reason, alert), Forgot-password link for Owner accounts, and audit.

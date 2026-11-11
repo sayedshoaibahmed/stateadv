@@ -8,7 +8,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["tests/unit/**/*.test.ts"],
+    include: ["tests/unit/**/*.test.ts", "tests/db/**/*.test.ts"],
     environment: "node",
     // Run with a non-IST machine time zone to prove IST handling does not
     // depend on the developer's computer settings.

@@ -23,6 +23,11 @@ describe("migration safety check (TEST_PLAN BKP-03)", () => {
     expect(findViolations("003.sql", sql)).toEqual([]);
   });
 
+  it("does not treat a CREATE TRIGGER ... BEFORE TRUNCATE (a protection) as a truncate", () => {
+    const sql = `create trigger t before truncate on public.x for each statement execute function public.f();\n`;
+    expect(findViolations("006.sql", sql)).toEqual([]);
+  });
+
   it("ignores destructive words inside comments", () => {
     const sql = `-- we never drop table bookings\ncreate table x (id int);\n`;
     expect(findViolations("004.sql", sql)).toEqual([]);

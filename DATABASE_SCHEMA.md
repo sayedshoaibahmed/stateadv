@@ -6,12 +6,24 @@
 | Status | M0 final draft. All owner decisions applied (PRD §11), including D1–D4. Owner-protection rules O1–O4 (PRD §12.2) marked where used. |
 | Last updated | 2026-11-11 |
 
+> **M2-A implementation notes (2026-11-11): the migration files in `supabase/migrations` are now the source of truth** (see `supabase/MIGRATION_REVIEW.md`). Where this document differs, these are the deliberate changes made while building and testing:
+> 1. **Extensions:** only `pg_trgm` is used. `citext` was dropped: e-mails and resort codes are stored lower-/upper-case with a CHECK and a plain unique constraint. `pgcrypto` was not needed (`gen_random_uuid()` is built in).
+> 2. **Identity from the session:** `created_by`, `updated_by`, `recorded_by`, `approved_by`, `rejected_by`, `reversed_by`, `cancelled_by`, `disabled_by`, `superseded_by`, `uploaded_by`, `hidden_by` and their times are stamped by triggers from `auth.uid()`, whatever the caller sends.
+> 3. **Approval history is written by a database trigger** (not by the RPC), so a decision cannot skip it.
+> 4. **Refund limit, payment-reversal limit, payment/refund codes, resort copy** are enforced in the guard triggers (under a booking row lock), not only in RPCs.
+> 5. **`proofs.storage_path`** is the object name inside the bucket (no bucket prefix): `{booking_id}/{uuid}.ext` or `refunds/{booking_id}/{uuid}.ext`.
+> 6. **Replacing a plan row:** the caller sets `superseded_revision_id`; the database stamps `superseded_at` / `superseded_by`. Hiding a proof: the caller sets `hidden_at` (any value) and `hidden_reason`; the database stamps the real time and user.
+> 7. **Plan rows and adjustments** can be added only by the latest revision created in the same transaction (`created_at = now()`).
+> 8. **Composite foreign keys** tie revisions to their own booking and providers to their own method.
+> 9. **Recovery path:** `user_profiles_guard` honours the setting `app.owner_recovery = on` only when there is no session user; it never bypasses the last-Owner rule.
+> 10. `booking_overdue` was added as a SQL function; `schedule_allocation` is not built (per-row allocation is display-only and moves to the app).
+
 Conventions:
 - Primary keys `uuid default gen_random_uuid()` unless noted.
 - Money is `bigint` **paise**, suffix `_paise`.
 - Business tables have `created_at timestamptz not null default now()`, `created_by uuid`, `updated_at`, `updated_by` (FK → `user_profiles`).
 - Text is trimmed by the RPCs, and empty strings are stored as NULL.
-- Extensions: `pgcrypto`, `pg_trgm`, `citext`.
+- Extensions: `pg_trgm` only (see implementation note 1).
 - Time zone for business dates: `Asia/Kolkata`. `today_ist()` = `(now() at time zone 'Asia/Kolkata')::date`.
 
 ---
