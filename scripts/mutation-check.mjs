@@ -145,6 +145,79 @@ const MUTATIONS = [
     from: "  new.updated_by := auth.uid();",
     to: "  new.updated_by := coalesce(auth.uid(), old.updated_by);",
   },
+  // ---- write functions (migrations 12-15) ---------------------------------
+  {
+    name: "a Manager may reset an Owner password (profile_reset_password)",
+    file: "12",
+    from: "    if v_actor_role <> 'owner' then\n      raise exception 'OWNER_ACTION_REQUIRES_OWNER' using detail = 'Only another Owner can do this to an Owner account.';\n    end if;\n    v_reason := public.require_reason(p_reason, 10);   -- O3",
+    to: "    if false then\n      raise exception 'OWNER_ACTION_REQUIRES_OWNER' using detail = 'Only another Owner can do this to an Owner account.';\n    end if;\n    v_reason := public.require_reason(p_reason, 10);   -- O3",
+  },
+  {
+    name: "people may change their own role (profile_update)",
+    file: "12",
+    from: "    if p_id = auth.uid() then\n      raise exception 'CANNOT_CHANGE_OWN_ROLE'",
+    to: "    if false then\n      raise exception 'CANNOT_CHANGE_OWN_ROLE'",
+  },
+  {
+    name: "owner recovery callable by logged-in users",
+    file: "12",
+    from: "to service_role;",
+    to: "to service_role, authenticated;",
+  },
+  {
+    name: "master data writable without an active account",
+    file: "13",
+    from: "if auth.uid() is null or not public.is_active_user() then",
+    to: "if false then",
+  },
+  {
+    name: "nights counted in UTC instead of IST (D4)",
+    file: "14",
+    from: "v_nights := (p_out at time zone 'Asia/Kolkata')::date - (p_in at time zone 'Asia/Kolkata')::date;",
+    to: "v_nights := (p_out at time zone 'UTC')::date - (p_in at time zone 'UTC')::date;",
+  },
+  {
+    name: "any amount may be moved from overdue (D2)",
+    file: "14",
+    from: "if v_move > v_unpaid then",
+    to: "if false then",
+  },
+  {
+    name: "cancellation charge may exceed the final amount",
+    file: "14",
+    from: "if v_charge < 0 or v_charge > cur.final_amount_paise then",
+    to: "if false then",
+  },
+  {
+    name: "booking function left open to PUBLIC",
+    file: "14",
+    from: "revoke all on function public.create_booking(jsonb, jsonb, uuid) from public, anon, authenticated;",
+    to: "",
+  },
+  {
+    name: "active bookings refundable without overpayment (Q12)",
+    file: "15",
+    from: "if b.status not in ('cancelled', 'no_show') and v_refund_due = 0 then",
+    to: "if false then",
+  },
+  {
+    name: "stored file size not compared with storage",
+    file: "15",
+    from: "or (obj.metadata ->> 'size') is distinct from v_size::text",
+    to: "or false",
+  },
+  {
+    name: "second approver not told it was already decided",
+    file: "15",
+    from: "  if cur.status <> p_from then\n    -- the second person sees who already acted (FR-APR-6)",
+    to: "  if false then\n    -- the second person sees who already acted (FR-APR-6)",
+  },
+  {
+    name: "correction reason shorter than 10 characters accepted",
+    file: "15",
+    from: "v_reason := public.require_reason(p_reason, 10);\n  select * into pr from public.proof_parent(p_kind, p_parent);\n  perform 1 from public.bookings",
+    to: "v_reason := public.require_reason(p_reason, 0);\n  select * into pr from public.proof_parent(p_kind, p_parent);\n  perform 1 from public.bookings",
+  },
 ];
 
 let problems = 0;
