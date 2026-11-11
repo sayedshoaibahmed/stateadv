@@ -38,7 +38,7 @@ begin
   -- cannot be fooled by two simultaneous changes (two Owners disabling each other).
   perform pg_advisory_xact_lock(hashtextextended('stateadv.user_profiles', 0));
 
-  -- The recovery function (service role only, M2-B) is the only thing that sets this.
+  -- The recovery function (service role only, written later in M2) is the only thing that sets this.
   recovery := actor is null and coalesce(current_setting('app.owner_recovery', true), '') = 'on';
 
   if actor is not null then

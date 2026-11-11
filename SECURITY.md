@@ -24,6 +24,7 @@
 - Password policy: at least 8 characters, leaked-password protection on (if the hosting plan supports it, Q11).
 - Sessions: `@supabase/ssr` HTTP-only cookies, refreshed in the proxy (`src/proxy.ts`, which validates the JWT with `getClaims()`). JWT expiry 1 h, refresh-token rotation on. Every server action calls `supabase.auth.getUser()` (which verifies the token with Auth), not just `getSession()`.
 - The app displays the user's **full name**. Email is shown only on the Users page and login.
+- **Email change (O7):** Supabase Auth setting "Secure email change" is ON (the old and the new address must both confirm). Email change always requires a fresh password check in our Server Action first. Confirmation links are single-use and expire. Until confirmed, nothing changes.
 - Brute force is limited by Supabase Auth rate limits, and the login error message does not say whether the email exists.
 - Password reset for Managers is done by another user setting a temporary password. No email is needed.
 - Owner accounts: a reset by another Owner (password re-entry + reason), **or** the "Forgot password" email link, which is enabled for Owner accounts only. Production needs a reliable email sender (custom SMTP; cost under Q11).
@@ -61,6 +62,7 @@ The system is secure with one active Owner: every rule in §3.2 still holds. The
 | Owner forgets the password | No other Owner can reset it. Managers **cannot** (O1). Self-service only: the "Forgot password" email link. | A mailbox only the Owner controls, with its own MFA. Working email sending (development: Supabase built-in sender, which is rate-limited and may only deliver to addresses of your Supabase team members; production: custom sender, Q11). |
 | Owner also loses access to that mailbox | App recovery is impossible. Only the recovery script remains. | Keep mailbox recovery options current. |
 | Owner loses the MFA device | Same as above. The script removes the lost MFA factor. | Store MFA recovery codes offline (paper or a password manager). |
+| Owner wants a new login email | The Owner may do this themselves (O7): current password, then confirmation of the new address (and the old address when Secure email change is on). Nothing changes until confirmed; the profile takes only the confirmed address. An admin change of an Owner's email still needs another Owner. | Keep both mailboxes under the Owner's control until the change is confirmed. If the old mailbox is already lost, only the recovery script can help. |
 | Recovery script needed | Requires the Supabase dashboard login (to get the secret key) and a trusted computer. Anyone holding the secret key could reset the Owner, so these logins are the real root of trust. | Supabase and Vercel logins in the business owner's name with MFA, ideally with a second trusted person as an administrator of the Supabase organisation. |
 | Dashboard login is also lost | The app cannot help. Recovery goes through Supabase account recovery. | Same as above. |
 | The Owner leaves the business or hands over | The sole Owner cannot be removed by anyone. | First add the new Owner (O6). The new Owner can then disable the old one under O1/O3 (reason, password, alert). |
@@ -124,6 +126,9 @@ Atomic multi-table financial operations (booking + ID + plan; approval + history
 - Past due payment-plan rows are locked, and expected-collection corrections are append-only dated adjustments with a reason (D2).
 - Original booking amounts are never overwritten by cancellation (Q7a). Amount edits need a reason and a new plan (Q13). Manual final-amount adjustments need a reason (Q1).
 - Refund limit is checked under a row lock (A − RA − RW).
+- **Payment reversal protection (D5):** an approved payment cannot be reversed while approved or waiting refunds depend on it (`REVERSAL_EXCEEDS_REFUNDS`). Reject or reverse the refunds first.
+- **Proofs of decided items are locked (Q9a):** files of an approved, rejected or reversed payment/refund cannot be added, hidden or removed. The only exception is the **correction-file process** (PRD FR-PAY-12): approved items only, mandatory written reason (at least 10 characters), original files untouched, labelled "Added after approval", shown on screen, in the PDF, the approval history and the audit log, listed for owner review, and with no effect on any amount or status.
+- **Own-email change (O7):** the profile email can change to a new value only (a) by another Owner under O1, or (b) when it equals the address Supabase Auth has just **confirmed** for that same user. There is no other way to write it.
 - Audit triggers use `auth.uid()` from the verified JWT. Audit, approval history and PDF versions are append-only.
 - Self-approval is allowed and always flagged (Q8) on the record, in history and in the audit log.
 - Idempotency keys block duplicates. Version checks block lost updates.

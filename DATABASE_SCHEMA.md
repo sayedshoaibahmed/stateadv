@@ -6,7 +6,7 @@
 | Status | M0 final draft. All owner decisions applied (PRD §11), including D1–D4. Owner-protection rules O1–O4 (PRD §12.2) marked where used. |
 | Last updated | 2026-11-11 |
 
-> **M2-A implementation notes (2026-11-11): the migration files in `supabase/migrations` are now the source of truth** (see `supabase/MIGRATION_REVIEW.md`). Where this document differs, these are the deliberate changes made while building and testing:
+> **M2 implementation notes (2026-11-11): the migration files in `supabase/migrations` are now the source of truth** (see `supabase/MIGRATION_REVIEW.md`). Where this document differs, these are the deliberate changes made while building and testing:
 > 1. **Extensions:** only `pg_trgm` is used. `citext` was dropped: e-mails and resort codes are stored lower-/upper-case with a CHECK and a plain unique constraint. `pgcrypto` was not needed (`gen_random_uuid()` is built in).
 > 2. **Identity from the session:** `created_by`, `updated_by`, `recorded_by`, `approved_by`, `rejected_by`, `reversed_by`, `cancelled_by`, `disabled_by`, `superseded_by`, `uploaded_by`, `hidden_by` and their times are stamped by triggers from `auth.uid()`, whatever the caller sends.
 > 3. **Approval history is written by a database trigger** (not by the RPC), so a decision cannot skip it.
@@ -17,6 +17,11 @@
 > 8. **Composite foreign keys** tie revisions to their own booking and providers to their own method.
 > 9. **Recovery path:** `user_profiles_guard` honours the setting `app.owner_recovery = on` only when there is no session user; it never bypasses the last-Owner rule.
 > 10. `booking_overdue` was added as a SQL function; `schedule_allocation` is not built (per-row allocation is display-only and moves to the app).
+> 11. **Reversal protection (D5)** is implemented in `guard_payment` (`REVERSAL_EXCEEDS_REFUNDS`) and covered by tests.
+>
+> **Agreed on 2026-11-11, documented here but NOT yet written into the migration files** (they will be added, with tests, as part of the same M2 work):
+> 12. **Verified own-email change (O7):** a SECURITY DEFINER trigger on `auth.users` (`AFTER UPDATE OF email`) copies a confirmed address into `user_profiles.email`. `guard_user_profiles` accepts an email change when it is made by another Owner (O1) **or** when there is no session user, a transaction-local flag set only by that trigger is on, and the new profile email equals `lower(auth.users.email)` for the same id. Role changes stay blocked for the account itself.
+> 13. **Correction files (Q9a):** `proofs` gets `is_correction boolean not null default false` and `correction_reason text`, with a CHECK (`is_correction` ⇒ reason of at least 10 characters; otherwise no reason). `guard_proof` allows an INSERT for a non-waiting parent only when `is_correction` is true **and the parent is Approved**; updating or hiding any proof of a decided parent stays blocked. A view lists "corrections added after approval".
 
 Conventions:
 - Primary keys `uuid default gen_random_uuid()` unless noted.

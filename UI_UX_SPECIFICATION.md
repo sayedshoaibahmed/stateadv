@@ -114,7 +114,7 @@ On save, a toast: "Booking RSA-2026-000123 saved. PDF is being prepared."
 - For cancelled/no-show bookings: a red banner "Cancelled on 12 Nov 2026 by Ramesh Kumar · Reason: … · Cancellation charge ₹1,000 (Original Booking Amount ₹5,000)". The money box uses the charge as the Amount Due.
 - Tabs:
   1. **Details**: guest, stay, C/O, pricing breakdown, adjustment + reason, remarks, entered/updated by and at.
-  2. **Payments & Refunds**: the payment list (status, proof thumbnails, inline Approve/Reject for waiting) and a separate Refunds list (same layout, "Add Refund" button).
+  2. **Payments & Refunds**: the payment list (status, proof thumbnails, inline Approve/Reject for waiting) and a separate Refunds list (same layout, "Add Refund" button). On an **Approved** payment or refund there is an **"Add correction file"** link (Q9a): it asks for the file(s) and a written reason (at least 10 characters), with the note "The original files and the amounts will not change." Correction files appear under the originals with an orange tag **"Added after approval"** showing the date, the person and the reason. Original files have no "hide" button once the item is decided. When **Reverse** is refused because refunds depend on the payment, the message reads: "This payment cannot be reversed because refunds depend on it. Reject or reverse the refunds first." with links to those refunds.
   3. **Payment Plan**: active rows (past due ones locked) with due date, amount, covered, outstanding and an overdue tag. An **Expected Adjustments** list (date, amount, reason, user). Plan revisions history (v1, v2, … with reason). "Change plan" (reason). Toggle "Show replaced rows".
   4. **PDFs**: versions (current marked) with date, reason and download.
   5. **History**: plain-English audit timeline for the booking, plan, payments and refunds.
@@ -184,6 +184,12 @@ Audit timeline with filters (user, action, record type, resort, date), including
 
 ### 3.17 Settings → Stay Types / Payment Apps / System status
 Add, rename and deactivate items in the lists. The system page shows the PDF queue, last backup and data checks.
+
+### 3.18 My Account `/account` (every user)
+- Shows name, email, role label. The role is read-only.
+- **Change my password** (current password, new password).
+- **Change my email** (O7): fields "Current password" and "New email address", button "Send confirmation". Then a clear waiting message: "We sent a link to your new address (and to your old address). Your email will change only after you open the link(s). Until then, keep using your old email to log in." A "Cancel request" link is shown while pending. After confirmation the page shows a green note with the date.
+- For a sole Owner, a short reminder: "Keep access to both mailboxes until the change is confirmed."
 
 ## 4. Key user flows
 - **F1 New booking with advance:** Add → Booking → choose per night → fill → plan: Advance ₹2,000 (booking date) + Balance ₹7,500 (check-in), total ✓ → Save and Add Payment → ₹2,000 UPI + screenshot (required) → booking shows Waiting ₹2,000, Pending ₹7,500. PDF v1 then v2.

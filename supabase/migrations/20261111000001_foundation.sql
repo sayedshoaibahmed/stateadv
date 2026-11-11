@@ -5,7 +5,7 @@
 --
 -- Error convention: business-rule violations are raised as
 --     RAISE EXCEPTION 'SOME_CODE' USING DETAIL = '<human explanation>'
--- The app maps SOME_CODE to a plain-English message (src/lib/errors.ts, M2-C).
+-- The app maps SOME_CODE to a plain-English message (src/lib/errors.ts).
 -- =============================================================================
 
 create schema if not exists extensions;

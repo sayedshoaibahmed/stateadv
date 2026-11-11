@@ -5,7 +5,7 @@
 --   * anon (not logged in)  : nothing at all.
 --   * authenticated         : may READ everything, but only while is_active_user().
 --                             Has NO insert/update/delete on any table.
---   * ALL writes go through SECURITY DEFINER functions (M2-B) that check
+--   * ALL writes go through SECURITY DEFINER functions (written later in M2) that check
 --     is_active_user() first, validate, and let the guard triggers do the rest.
 --   * service_role (secret key) keeps its default rights but the guard triggers
 --     still apply to it; it is used only for Auth admin work and the PDF cron.

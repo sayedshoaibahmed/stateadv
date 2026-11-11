@@ -4,7 +4,7 @@
 |---|---|
 | Document | Product Requirements Document |
 | Milestone | M0 – Requirement Analysis and Architecture |
-| Status | **M0 approved (2026-11-11). Q11 hosting budget deferred. Second Owner account pending: details not yet provided (§12.1).** |
+| Status | **M0 approved (2026-11-11). M2 in progress (one milestone). Q11 hosting budget deferred. Second Owner account pending (§12.1).** |
 | Last updated | 2026-11-11 |
 
 ---
@@ -96,13 +96,21 @@ Users are assumed to be non-technical, often on mobile phones, sometimes on slow
 
 **Owner-account protection** (decided; rules O1–O4 in §12.2, one-Owner clarification O5–O6)
 - FR-AUTH-9 **At least one active Owner account must always exist.** The system blocks any action that would leave zero active Owners: disabling the last active Owner, or changing the last active Owner's role to Manager.
-- FR-AUTH-10 **Protected actions on an Owner account** can be done only by **another active Owner**: disabling it, resetting its password, changing its email, or changing its role. Managers can still view Owner accounts. *(O1)*
+- FR-AUTH-10 **Protected actions on an Owner account** can be done only by **another active Owner**: disabling it, resetting its password, changing its email, or changing its role. Managers can still view Owner accounts. *(O1)* Two clarifications decided 2026-11-11:
+  - **Role changes are never self-service.** An Owner cannot change their own role (and cannot demote themselves). With a single Owner nobody can change that role.
+  - **An email change is the one exception:** any user, including the Owner, may change **their own** login email, but only through the verified process in FR-AUTH-16. The "another Owner" route in this rule still exists for changing someone else's email.
 - FR-AUTH-11 **Only an Owner can give the Owner role** to a user (create an Owner, or promote a Manager to Owner). A Manager cannot make themselves or anyone else an Owner. *(O2)*
 - FR-AUTH-12 A protected action needs (a) a written **reason** and (b) the acting Owner to **re-enter their own password**. It is recorded in the audit history, and the dashboard shows an alert to all users ("Owner account Ravi Kumar was disabled by Sunita Rao – reason …"). *(O3)*
 - FR-AUTH-13 **Account recovery**, in this order:
   1. The Owner who forgot their password uses the "Forgot password" email link (Owner accounts only). If a second Owner exists, that Owner can also reset the account.
   2. If no Owner can log in, the recovery procedure (DEPLOYMENT_GUIDE §7.4) uses a one-time server script, run by the business owner on their own computer with the Supabase project credentials, to re-enable the Owner account, set a temporary password and, if needed, remove a lost two-step login (MFA) device. The script writes an audit entry "owner_recovered" with its reason.
   3. Recommended: keep **two Owner accounts** and turn on two-step login (MFA) for Owner accounts. *(O4)* The second Owner is **optional and pending** (FR-AUTH-14).
+- FR-AUTH-16 **Verified email change (own account)** *(O7, decided 2026-11-11)*:
+  1. Any user opens "My Account → Change email", enters their **current password** and the **new email address**.
+  2. Supabase Auth sends a confirmation link to the **new address**. With "Secure email change" turned on (our default) the **old address must also confirm**. Nothing changes until every required link has been used. The login email, the profile email and the audit history stay as they were until then.
+  3. When the change is confirmed, the profile email is updated **only to the exact confirmed address**; the change cannot be made to any other value. It is recorded in the audit history (old and new address, who) and shown as an alert on the dashboard for Owner accounts.
+  4. If a link expires or is not used, the old email keeps working. If the old mailbox is lost, the existing recovery steps apply (FR-AUTH-13), unchanged.
+  5. This is the only way to change one's own email. It does not touch the role, and it does not change any other Owner protection.
 - FR-AUTH-14 **The system works securely with exactly one active Owner** *(O5, decided 2026-11-11)*:
   1. At the start there is **one real Owner account**: the business owner's. **No second, placeholder, dummy or test Owner is created in the real data, and no fake email address is ever used.**
   2. All rules above still apply: at least one active Owner always exists; the sole Owner cannot disable or demote themselves, and no one else can disable, demote, reset or re-email the sole Owner's account (managers are blocked by O1/O2).
@@ -202,7 +210,14 @@ Users are assumed to be non-technical, often on mobile phones, sometimes on slow
   - The same screenshot file is already attached to another payment.
   - The payment takes the booking above its Amount Due.
 - FR-PAY-7 A payment that is Waiting for Approval can be edited (reason + audit history). An extra proof can be added, or a wrong file hidden (never deleted), but the last proof of a UPI/Card/Cheque payment cannot be hidden.
-- FR-PAY-8 Approved, Rejected and Reversed payments cannot be edited. Corrections are made by Reject/Reverse and a new entry.
+- FR-PAY-8 Approved, Rejected and Reversed payments cannot be edited. Corrections are made by Reject/Reverse and a new entry. **The files (screenshots / receipts) of an Approved, Rejected or Reversed payment cannot be added to, hidden or removed** *(decided 2026-11-11)*, except through the controlled correction process in FR-PAY-12.
+- FR-PAY-12 **Correction file (controlled exception, Q9a)** *(decided 2026-11-11)*. If a receipt or screenshot is missing or unreadable on an **Approved** payment (or refund):
+  1. Any active user can choose **"Add correction file"** on that payment. The original files stay exactly as they are and can never be hidden or replaced.
+  2. A **written reason is mandatory** (at least 10 characters, for example "Cash receipt photo was taken later"), plus the file or files.
+  3. The correction file is clearly labelled **"Added after approval"** with the date, the person and the reason, on screen, in the booking PDF, in the approval history and in the audit history.
+  4. It **changes no amount, status or date** and no financial figure. It cannot be used to change a payment; for a wrong amount, use Reverse and a new payment.
+  5. Every correction file appears in a "Corrections added after approval" list (Activity filter and Waiting-for-Approval page) so the owner can review them.
+  6. It is not available on Waiting payments (use the normal "add file" step) and not on Rejected / Reversed ones (enter a new payment instead).
 - FR-PAY-9 Payments are never deleted.
 - FR-PAY-10 Pressing Save twice never creates two payments.
 - FR-PAY-11 Payments cannot be added to Cancelled/No-show bookings, except to collect an unpaid cancellation charge (only up to the Pending Amount; above that, a warning).
@@ -215,6 +230,7 @@ Users are assumed to be non-technical, often on mobile phones, sometimes on slow
   - Waiting → **Rejected** (reason required)
   - Approved → **Reversed** (reason required)
   - Rejected and Reversed are final.
+- FR-APR-3a **Reversal protection (D5, decided 2026-11-11):** an **Approved payment cannot be reversed while refunds depend on it**, that is, when reversing it would leave the approved refunds and the refunds waiting for approval larger than the approved money still held. The screen says: "This payment cannot be reversed because refunds depend on it. Reject or reverse the refunds first." (Reject the waiting refunds, or reverse the approved ones, then reverse the payment.)
 - FR-APR-4 Every change adds an approval history row (who, when, from, to, reason). History is never overwritten or deleted.
 - FR-APR-5 **Self-approval is allowed** (decided Q8). It is shown as **"Self-approved"** on screen, in approval history, audit history, PDF and reports, with a filter and a dashboard count.
 - FR-APR-6 If two users act on the same item at the same moment, only the first succeeds. The second sees "This payment was already approved by <name>".
@@ -247,7 +263,7 @@ Users are assumed to be non-technical, often on mobile phones, sometimes on slow
 - FR-REF-3 A refund amount cannot be more than the approved money still held for the booking: Approved Payments − Approved Refunds − Refunds Waiting for Approval. If it is more than the "Refund due" amount, a warning is shown.
 - FR-REF-4 Refunds have **their own approval process** (decided Q7b) with the same statuses, rules, approval history and Self-approved indicator as payments (§5.9).
 - FR-REF-5 Proof rule: the same as payments (mandatory for UPI/Card/Cheque, optional for Cash/Other). *(Decided D3.)*
-- FR-REF-6 Refunds are never deleted. Mistakes are corrected by Reject/Reverse plus a new entry.
+- FR-REF-6 Refunds are never deleted. Mistakes are corrected by Reject/Reverse plus a new entry. The files of a decided refund follow the same rules as payment files (FR-PAY-8 and the correction process in FR-PAY-12).
 - FR-REF-7 Refunds appear on the booking page, in the PDF, in the audit history and as a separate line in reports.
 
 ### 5.11 Financial values (single set of rules, used everywhere)
@@ -425,6 +441,9 @@ Every report header states the date used, the approval rule applied, and the tim
 | R15 | Refund larger than money held | Database check under a row lock |
 | R16 | A user disables or takes over an Owner account, or nobody can log in as Owner | At least one active Owner is always required. Protected Owner actions only by another Owner, with password re-entry and a reason. Only Owners grant the Owner role. Alerts. Recovery script. Two Owner accounts recommended. |
 | R18 | Historical expected figures silently change | Past due plan rows locked. Changes recorded as dated Expected Adjustments. |
+| R19 | Correction files used to disguise a bad approval | Originals are never touched. A reason is mandatory. Files are labelled "Added after approval" everywhere (screen, PDF, history) and listed for the owner to review. They change no money figure. |
+| R20 | Email change used to take over an account | Needs the current password, confirmation from the new address (and the old one with Secure email change), the profile only ever takes the confirmed address, everything is audited. Role stays locked. |
+| R21 | A reversal leaves refunds paid out of money no longer held | Reversal is refused until dependent refunds are rejected or reversed (D5). |
 | R17 | Manual amount adjustment misuse | Mandatory reason, calculated value kept, shown on PDF and in a filterable report |
 
 ## 10. Possible future features (not in version 1)
@@ -463,6 +482,10 @@ Room/cottage allocation, percentage discounts, agent commission, SMS/WhatsApp co
 | 2026-11-11 | **Owner protection** At least one active Owner always. Extra protection for disabling Owner accounts. Account recovery must be possible. Detailed rules O1–O4 proposed (§12.2). | Owner |
 | 2026-11-11 | **O5, O6** Create only the owner's own first Owner account. The second Owner stays pending until details are provided: no fake email, no dummy Owner. The system must run securely with one active Owner and keep the "at least one active Owner" rule. Recovery limitations with one Owner are documented. The second Owner is added later by the existing Owner through the approved Owner management process. | Owner |
 | 2026-11-11 | **O6 approved.** Adding another Owner requires the current Owner's password and a written reason. **M2 setup choices:** fictional test data only (never in real data; tests roll back); database tests run through GitHub Actions in a disposable database; the built-in Supabase email is used in development; database changes use Option B (database connection string), subject to CLI compatibility and security verification. | Owner |
+| 2026-11-11 | **O7** An Owner may change their OWN email through a verified Supabase Auth email-change process with confirmation of the new email. Self-service role changes stay restricted. The sole-Owner recovery procedure is unchanged. | Owner |
+| 2026-11-11 | **Q9a** Proofs of approved payments and refunds stay locked. Missing receipts are handled by a controlled correction process with a mandatory reason and audit record (FR-PAY-12). | Owner |
+| 2026-11-11 | **D5** Reversing a payment is refused while dependent refunds exist; reject or reverse the refunds first (FR-APR-3a). | Owner |
+| 2026-11-11 | **M2 is ONE complete milestone** (Database and Authentication). No user-facing sub-milestones (M2-A, M2-B ...). Internal task lists are allowed. | Owner |
 
 ## 12. Open items
 
@@ -478,11 +501,12 @@ You asked for extra protection for Owner accounts. To make that protection actua
 
 | # | Rule | Why it is needed | Alternative |
 |---|---|---|---|
-| O1 | Disabling an Owner, resetting an Owner's password, changing an Owner's email or role: **only another active Owner** can do it. | If a Manager could reset an Owner's password, they could log in as the Owner, so "disable protection" alone would not protect the account. | Managers may also do it, but only with a reason + password re-entry + alert (weaker). |
+| O1 | Disabling an Owner, resetting an Owner's password, changing an Owner's email or role: **only another active Owner** can do it. *(2026-11-11: an Owner may change their OWN email, but only through the verified process O7. Role changes stay restricted.)* | If a Manager could reset an Owner's password, they could log in as the Owner, so "disable protection" alone would not protect the account. | Managers may also do it, but only with a reason + password re-entry + alert (weaker). |
 | O2 | **Only an Owner can give the Owner role.** | Otherwise a Manager could promote themselves to Owner and then use O1. | — (needed for O1 to mean anything) |
 | O3 | Protected Owner actions need a reason + the acting Owner's password re-entered, and every user sees a dashboard alert. | Prevents a mistake or misuse on an unattended logged-in device. | Reason only. |
 | O4 | Recommended setup: **two Owner accounts**, MFA for Owners, and "Forgot password" email enabled for Owner accounts only. A server-side recovery script is the last resort. | With one Owner, a forgotten password could otherwise lock the business out of owner-level account control. | One Owner and the recovery script only. **Owner decision 2026-11-11: start with one Owner (O5); the second is pending.** |
 | O5 | Start with **one real Owner**. Never create a dummy or fake-email Owner. All Owner protections still hold with one Owner. | Owner has no second person's details yet. | Block go-live until two Owners exist (rejected by owner). |
 | O6 | The second Owner is added later by the existing Owner in the app (Add User, role Owner, reason, password re-entry, audit, alert). | Uses the already approved Owner management process, no special-case code. | Email invitation link (needs the production email sender; not version 1). |
+| O7 | An Owner may change their **own** email only through a verified Auth process: current password, confirmation link to the new address (and the old address with Secure email change), then the profile takes only the confirmed address. | Without it, the sole Owner could never change their email in the app. | Recovery script only (rejected by owner). |
 
 With these rules, a Manager can still add, edit, disable, enable and reset **Manager** accounts, exactly as decided in Q10.

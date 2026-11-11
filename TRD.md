@@ -138,8 +138,15 @@ assert Σ active rows + Σ adjustments = new_amount_due      -- also a deferred 
    - return warnings: duplicate reference, duplicate file hash, payment above Amount Due, refund above Refund due.
 4. Uploaded files never attached to a record are listed in a weekly maintenance report. They are not auto-deleted.
 
+### 5.4a Correction files for decided payments / refunds (Q9a, PRD FR-PAY-12)
+- Normal rule: a payment or refund that is not Waiting accepts **no** new files and no file can be hidden (`PROOF_LOCKED`).
+- Exception, through one dedicated function `add_correction_proofs(parent, files, reason)`: allowed only when the parent is **Approved**; the reason must be at least 10 characters; the file checks are the same as for a normal upload (type, size, fingerprint, server-generated name).
+- Data: each `proofs` row gets `is_correction boolean not null default false` and `correction_reason text`. A CHECK ties them together (correction ⇒ reason of at least 10 characters; not a correction ⇒ no reason). The guard trigger allows an INSERT on a non-waiting parent **only** when `is_correction` is true and the parent is Approved. Updating or hiding any proof of a decided parent stays impossible, including the correction rows.
+- The audit trigger records each correction file; a view/list "Corrections added after approval" feeds the Activity filter, and the booking PDF prints them with "Added after approval on <date> by <name>: <reason>".
+- No money figure is touched; the commit-time proof rule is unchanged.
+
 ### 5.5 Approve / reject / reverse (payments and refunds)
-`SELECT … FOR UPDATE`, check version and transition (waiting→approved, waiting→rejected (reason), approved→reversed (reason)), update the fields, insert `approval_history` with `is_self_action`, audit, and a PDF job. Self-approval is allowed and flagged (Q8). A concurrent second action gets `ALREADY_DECIDED` with the name of the user who decided it.
+`SELECT … FOR UPDATE`, check version and transition (waiting→approved, waiting→rejected (reason), approved→reversed (reason)), update the fields, insert `approval_history` with `is_self_action`, audit, and a PDF job. Self-approval is allowed and flagged (Q8). A concurrent second action gets `ALREADY_DECIDED` with the name of the user who decided it. **Reversal protection (D5):** reversing an approved payment locks the booking row and is refused (`REVERSAL_EXCEEDS_REFUNDS`) if the approved money left after the reversal would not cover the approved refunds plus the refunds waiting for approval; reject or reverse those refunds first.
 
 ### 5.6 PDF generation and versioning
 - Trigger events (PRD FR-PDF-1): booking create/edit, plan change, payment/refund add/edit/decision, cancel/no-show/charge change. Each RPC inserts a `pdf_jobs` row in its transaction.
@@ -166,6 +173,14 @@ assert Σ active rows + Σ adjustments = new_amount_due      -- also a deferred 
 - Disable = `is_active=false` (blocked by RLS immediately) + Auth ban (refresh tokens stop working).
 - If one step fails, the other is compensated (re-enable / unban / remove the just-created auth user), and the error is shown. An integrity check compares `auth.users` with `user_profiles` nightly (banned ⇔ inactive).
 - Password reset by another user sets a temporary password and `must_change_password = true`. The app does not depend on outgoing email (Supabase's default email sender is heavily rate-limited).
+
+### 5.7a Verified email change (O7, PRD FR-AUTH-16)
+1. "My Account → Change email" calls a Server Action that (a) checks the session with `getUser()`, (b) re-verifies the **current password** on a separate non-persisted client, and (c) calls `supabase.auth.updateUser({ email })` **with the user's own session** (no secret key).
+2. Supabase Auth keeps the new address pending and emails confirmation link(s): to the new address, and to the old address too while "Secure email change" is on. `auth.users.email` and the profile do not change until all required links are used.
+3. A trigger on `auth.users` (`AFTER UPDATE OF email`, SECURITY DEFINER, installed by migration) copies the confirmed address into `user_profiles.email`. It sets a transaction-local flag so the account guard accepts the change **only if** the profile id exists, there is no session user, the flag is set, and the new profile email equals `lower(auth.users.email)` for that same id. Any other attempt to change an email still needs another active Owner (O1).
+4. The change is audited (old and new address; actor = the user, since the confirmation happens in that user's own link) and raises the same dashboard alert as other Owner-account changes.
+5. Role changes are not part of this flow: the guard still refuses any role change of an Owner by that same Owner. The recovery script remains the last resort and now also covers "old mailbox lost" for a sole Owner.
+6. The nightly integrity check compares `auth.users.email` with `user_profiles.email`.
 
 ### 5.8 Reports and exports
 - Report functions take `(resort_id nullable, from, to, …)`, are paginated, and use the date rules in PRD §5.12/§5.16.

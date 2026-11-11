@@ -9,7 +9,7 @@
 
 -- ---------------------------------------------------------------------------
 -- booking_sequences: one counter per resort per booking-date year (Q4).
--- Written only by next_booking_code() (M2-B). A row lock on this row is what
+-- Written only by next_booking_code() (the booking function, later in M2). A row lock on this row is what
 -- makes simultaneous bookings safe: two writers take turns.
 -- ---------------------------------------------------------------------------
 create table public.booking_sequences (

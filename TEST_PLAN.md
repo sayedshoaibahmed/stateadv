@@ -16,7 +16,7 @@
 | Security | scripts + review | RLS bypass, headers, secrets, dependencies | M9 + each release |
 | Restore drill | runbook | backup → restore → verify | before go-live, then quarterly |
 
-**M2-A status (2026-11-11):** database tests run today with **PGlite** (real PostgreSQL 18 compiled to WebAssembly, in memory, no Docker, never connected to Supabase) via `npm run test:db` and in CI through `npm test`: 143 tests in `tests/db`. They cover SEC-01..05, USR/OWN single-connection cases, AMT, CO, BID (non-concurrent), PLN, CAN, PAY, APR, REF, AUD, FIN-01..19 plus 250 random bookings against `src/lib/calc.ts`, COL-01/05/06/10/11*. `npm run check:mutations` deliberately weakens the migrations in 10 ways and requires the tests to fail each time. **Still to do (M2-D, GitHub Actions on real Postgres):** tests that need several simultaneous connections (BID-02/03, OWN-06, REF-04 race, APR-05), the RPC tests (M2-B), and pgTAP-style checks against the Supabase-managed pieces.
+**M2 status (2026-11-11):** database tests run today with **PGlite** (real PostgreSQL 18 compiled to WebAssembly, in memory, no Docker, never connected to Supabase) via `npm run test:db` and in CI through `npm test`: 143 tests in `tests/db`. They cover SEC-01..05, USR/OWN single-connection cases, AMT, CO, BID (non-concurrent), PLN, CAN, PAY, APR, REF, AUD, FIN-01..19 plus 250 random bookings against `src/lib/calc.ts`, COL-01/05/06/10/11*. `npm run check:mutations` deliberately weakens the migrations in 10 ways and requires the tests to fail each time. **Still to do (later in M2, GitHub Actions on real Postgres):** tests that need several simultaneous connections (BID-02/03, OWN-06, REF-04 race, APR-05), the RPC tests (when the write functions exist), and pgTAP-style checks against the Supabase-managed pieces.
 
 **Golden fixture:** `supabase/tests/fixtures/golden.sql` with 3 resorts, about 40 bookings (both pricing methods, extras, discounts, adjustments, cancellations, no-shows) and about 100 payments/refunds in every status. `golden_expected.csv` holds the hand-calculated figures. The dashboard, reports and PDF summaries are asserted against it.
 
@@ -262,6 +262,28 @@ Tests never run against production, and **no test data is ever left in the real 
 | PDF-07 | ₹ and Indian grouping render | ✓ |
 | PDF-08 | generator throws | data saved, job failed, retry succeeds |
 | PDF-09 | download an old version | works via signed URL |
+
+### 2.13a Decisions of 2026-11-11 (O7, Q9a, D5) — to be written with the matching migration changes
+| ID | Case | Expected |
+|---|---|---|
+| EML-01 | an Owner (or Manager) asks to change their own email | nothing changes in `auth.users` or `user_profiles` until the confirmation link(s) are used |
+| EML-02 | the wrong current password is given | request refused, nothing sent |
+| EML-03 | the confirmed address arrives (simulated change of `auth.users.email`) | `user_profiles.email` takes exactly that address; audit row with old and new; alert raised |
+| EML-04 | direct attempt to set a different email on a profile (own account, with or without a session) | refused (`OWNER_ACTION_REQUIRES_OWNER` for Owners, `NOT_ALLOWED` otherwise) |
+| EML-05 | the sync flag set by a normal logged-in user | does not allow any change (it only works with no session user and a matching confirmed address) |
+| EML-06 | the sole Owner changes their own **role** (any route) | refused |
+| EML-07 | another Owner changes an Owner's email (O1 route) | still works with reason + password re-entry |
+| EML-08 | `auth.users` email and `user_profiles` email differ after a test | nightly integrity check reports it |
+| COR-01 | add a correction file to an **Approved** payment with a reason of 10+ characters | accepted; tagged "Added after approval"; audit row; no amount/status/date changes |
+| COR-02 | the same without a reason or with a short one | refused (`proofs` CHECK) |
+| COR-03 | add a correction file to a Waiting, Rejected or Reversed payment | refused (Waiting uses the normal add; others need a new payment) |
+| COR-04 | hide, edit or replace any original or correction file of an Approved payment | refused (`PROOF_LOCKED`) |
+| COR-05 | correction file for an Approved refund | same rules as payments |
+| COR-06 | correction file changes `booking_financials` | never; all figures identical before and after |
+| COR-07 | correction file appears in the "Corrections added after approval" list and on the booking PDF | ✓ |
+| REV-01 | reverse an approved payment while approved refunds depend on it | refused (`REVERSAL_EXCEEDS_REFUNDS`) — already covered by the existing database test |
+| REV-02 | the same while a refund is only **waiting** | refused; allowed once that refund is rejected |
+| REV-03 | reverse after the dependent refund was reversed | allowed |
 
 ### 2.14 UI / E2E
 Flows F1–F10 (UI spec §4) on desktop and mobile. Plus: keyboard-only booking creation, a throttled network during upload, the offline banner, plain-English errors, and the dashboard showing exactly one Total Collection (Approved) card and a separate Waiting card (Q17).

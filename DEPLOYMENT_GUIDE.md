@@ -42,6 +42,7 @@ The booking ID needs no env var: the prefix is each resort's code, stored in the
    - Email provider on.
    - **Sign-ups disabled.**
    - Leaked-password protection on (if the plan allows).
+   - **Secure email change ON** (old and new address both confirm). Confirmation links are single-use and short-lived. In development the built-in Supabase email may deliver only to your Supabase team addresses, so test email changes with those.
    - JWT expiry 3600.
    - Site URL and redirect URLs set to the app domain.
 3. `supabase link --project-ref <ref>`. Apply migrations (§6).
@@ -124,6 +125,7 @@ The system runs securely with a single Owner, with a narrower recovery path. Ful
 - Managers **cannot** reset or re-enable the Owner (by design, O1).
 - If the Owner forgets the password, the "Forgot password" email is the only self-service route. It needs a mailbox the Owner controls and a working email sender. In development the built-in Supabase sender is rate-limited and may only deliver to Supabase team members' addresses.
 - If the mailbox or MFA device is also lost, only the recovery script (step 3 above) works. It needs the Supabase dashboard login.
+- The Owner can change their **own** login email in the app (My Account), with password + confirmation of the new address (and the old one). That needs working email delivery. Role changes are never self-service.
 - To add the second Owner later: Settings → Users → Add User → role Owner (reason + password re-entry). No development work or deployment is needed.
 
 ## 8. Restore drill log

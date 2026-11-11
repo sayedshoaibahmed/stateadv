@@ -1,4 +1,4 @@
-# M2-A — Migration review guide
+# M2 — Database migration review guide
 
 **Status: written and tested locally. NOT applied to Supabase.** Nothing here touches your Supabase project until you review and explicitly approve applying it.
 
@@ -19,7 +19,7 @@ How it was checked: all ten files are applied to a throw-away in-memory PostgreS
 | Functions | 24 (14 run with elevated rights; **only 4 are callable by app users**, all read-only) |
 | Data inserted | only 3 stay types and 9 payment providers (migration 10) |
 
-What is **not** in these files (next steps, after you approve this part): the write functions (RPCs, M2-B), login / user-management screens and the first-Owner script (M2-C), the GitHub Actions database job and the true-concurrency tests (M2-D).
+What is **not** in these files (later work inside the same M2 milestone, after you approve this part): the write functions (RPCs), login / user-management screens and the first-Owner script, the GitHub Actions database job and the true-concurrency tests, plus the two agreed additions in §10 (verified own-email change, correction files).
 
 ## 2. How to read the rules (the three layers)
 
@@ -68,7 +68,7 @@ Money is always a whole number of **paise** (`bigint`). Amounts typed into booki
 - `stay_types`: name unique ignoring case. `payment_providers`: unique (method, name), plus unique (id, method) so a payment can reference **both** — a provider can never be attached to the wrong method (PhonePe with Cash is impossible).
 
 ### `booking_sequences`
-- One row per **resort per booking-date year**; `last_value` 0–999999. Primary key (resort, year). Not readable by app users. The row lock on this row is what makes simultaneous bookings safe (used in M2-B).
+- One row per **resort per booking-date year**; `last_value` 0–999999. Primary key (resort, year). Not readable by app users. The row lock on this row is what makes simultaneous bookings safe (used by the booking function, later in M2).
 
 ### `bookings`
 - **Links:** resort, guest, agent/partner, stay type, and the user who created/updated/cancelled.
@@ -109,7 +109,7 @@ Money is always a whole number of **paise** (`bigint`). Amounts typed into booki
 
 ## 5. Row Level Security and privileges
 
-**Model:** not logged in → nothing; logged in and active → read-only; **all writes go through functions** (M2-B).
+**Model:** not logged in → nothing; logged in and active → read-only; **all writes go through functions** (to be written in M2).
 
 | Layer | What happens |
 |---|---|
@@ -132,7 +132,7 @@ Money is always a whole number of **paise** (`bigint`). Amounts typed into booki
 - **O1:** disabling/enabling an Owner, changing an Owner's email or role, or flagging an Owner for a password reset needs **another active Owner**.
 - **At least one active Owner always exists** — enforced for everyone, including the recovery path.
 - Who disabled an account and when are stamped from the session.
-- **Recovery path:** a session with no user plus a setting that only the (service-role-only) recovery function will set (M2-B). It can re-enable an Owner but can never remove the last one.
+- **Recovery path:** a session with no user plus a setting that only the (service-role-only) recovery function will set (written later in M2). It can re-enable an Owner but can never remove the last one.
 
 ### 6.2 Bookings (`guard_booking`)
 - New bookings only for **active resorts**; status starts as "confirmed".
@@ -179,14 +179,21 @@ One row per booking with: amount due, total collection (approved only), waiting,
 - **Mutation check** (`node scripts/mutation-check.mjs`): the migrations are deliberately weakened in ten ways, one at a time, in a temporary copy — last-Owner protection removed, RLS off, past-due lock off, waiting refunds reduce Pending, app users given INSERT, functions open to anon, refund limit off, approved payments editable, cancelled amounts editable, audit log editable. **All ten make real tests fail.**
 - Bugs found and fixed by these tests before review: an expression in the commit-time plan check that referenced a column not present on every table, and a plan-row guard that rejected the intended "replace" update.
 
-**Limits (honest):** the engine is PostgreSQL 18 (Supabase runs 17); Supabase's own pieces are stand-ins. Tests with several simultaneous connections (parallel bookings, two Owners acting at once) cannot run on a single connection and are planned for GitHub Actions on real Postgres (M2-D). The first real test on Supabase is the apply step itself, which I will run only with `--dry-run` first and after your approval.
+**Limits (honest):** the engine is PostgreSQL 18 (Supabase runs 17); Supabase's own pieces are stand-ins. Tests with several simultaneous connections (parallel bookings, two Owners acting at once) cannot run on a single connection and are planned for GitHub Actions on real Postgres (later in M2). The first real test on Supabase is the apply step itself, which I will run only with `--dry-run` first and after your approval.
 
-## 10. Points for your decision / awareness
+## 10. Owner decisions (2026-11-11) and what they change
 
-1. **An Owner cannot change their own email or role in the app** (O1 says "only another Owner"). With one Owner that means an email change needs the recovery script. Options: keep (strictest), or allow an Owner to change their own email only through Supabase's verified email-change flow (needs a rule change).
-2. **Files can only be added to a payment/refund while it is waiting**, and a decided item's screenshots are frozen. If you want to attach a missing receipt after approval, that needs a rule change.
-3. **Hiding a file**: the caller sends "hide" with a reason; the database stamps the real time and user.
-4. **Reference data is audited** as "system" actions (12 audit rows from migration 10, no user).
-5. **A payment cannot be reversed while refunds depend on it** (reject or reverse the refunds first). This is an extra safety rule not spelled out in the PRD.
-6. **Pending list in M2-B:** `next_booking_code`, `create_booking`, plan/cancel/refund/payment functions, user-management functions, `recover_owner_account` (service role only).
-7. **Supabase hosted specifics to confirm at apply time:** creating policies on `storage.objects` and inserting into `storage.buckets` from a migration (standard, but this is the one part that can only be proven on the real service).
+| # | Decision | Effect on these migration files |
+|---|---|---|
+| 1 | **Own-email change allowed, only through a verified Supabase Auth process** (current password, confirmation of the new address, old address too with Secure email change). **Role changes stay restricted.** Sole-Owner recovery unchanged. | **Agreed, not yet written.** Needs a trigger on `auth.users` that copies a *confirmed* address into the profile, and a narrow exception in `guard_user_profiles`. Today's files still refuse every self email change, which is the safe default. Design: PRD FR-AUTH-16, TRD §5.7a, DATABASE_SCHEMA note 12. |
+| 2 | **Proofs of approved payments/refunds stay locked.** Missing receipts go through a controlled correction process (mandatory reason, audit, labelled "Added after approval"). | **Agreed, not yet written.** Needs two columns on `proofs` and one exception in `guard_proof` (approved items only). Today's files refuse all additions after a decision, which is the safe default. Design: PRD FR-PAY-12, TRD §5.4a, DATABASE_SCHEMA note 13. |
+| 3 | **Reversal protection kept.** A payment cannot be reversed while dependent refunds exist. | **Already implemented and tested** (`REVERSAL_EXCEEDS_REFUNDS`). PRD FR-APR-3a records it. |
+
+Both "not yet written" items will be added with their tests (TEST_PLAN §2.13a) and mutation checks. Until you have reviewed the documents, the migration files are unchanged, so everything described in sections 1–9 still holds exactly.
+
+## 11. Other points for awareness
+
+1. **Hiding a file** (while waiting): the caller sends "hide" with a reason; the database stamps the real time and user.
+2. **Reference data is audited** as "system" actions (12 audit rows from migration 10, no user).
+3. **Still to be written in M2:** `next_booking_code`, `create_booking`, plan/cancel/refund/payment functions, user-management functions, `recover_owner_account` (service role only).
+4. **Supabase hosted specifics to confirm at apply time:** creating policies on `storage.objects`, inserting into `storage.buckets`, and (new) creating a trigger on `auth.users`. These are standard on Supabase but can only be proven on the real service.
