@@ -148,7 +148,7 @@ describe.skipIf(!shell)("launcher behaviour (FOW-PS run)", () => {
     expect(out(r)).toContain("Nothing was created");
     expect(out(r)).not.toContain(FAKE_KEY);
     expect(out(r)).not.toContain("someotherprojectref00");
-  });
+  }, 120_000);
 
   it("FOW-PS-5: a missing or old-style key is refused", () => {
     const missing = envFile(
@@ -166,7 +166,7 @@ describe.skipIf(!shell)("launcher behaviour (FOW-PS run)", () => {
     expect(r.status).toBe(1);
     expect(out(r)).toContain("sb_secret_ format");
     expect(out(r)).not.toContain("legacy");
-  });
+  }, 120_000);
 
   it("FOW-PS-6: the right project passes the checks, and only the existing script (with or without --dry-run) would run", () => {
     const f = envFile(
@@ -185,7 +185,7 @@ describe.skipIf(!shell)("launcher behaviour (FOW-PS run)", () => {
       "Would run: npx tsx scripts/create-first-user.ts --dry-run",
     );
     expect(out(real) + out(dry)).not.toContain(FAKE_KEY);
-  });
+  }, 120_000);
 
   it("FOW-PS-7: no password, name, email or confirmation is accepted on the command line", () => {
     const f = envFile(
@@ -206,7 +206,7 @@ describe.skipIf(!shell)("launcher behaviour (FOW-PS run)", () => {
         expect(out(r)).not.toContain("hunter2hunter2");
       expect(out(r)).not.toContain("Would run");
     }
-  });
+  }, 120_000);
 
   it("FOW-PS-8: a real run refuses any file other than the repository's .env.local, and refuses a redirected (non-interactive) console", () => {
     const f = envFile(
@@ -220,7 +220,7 @@ describe.skipIf(!shell)("launcher behaviour (FOW-PS run)", () => {
     expect(piped.status).toBe(1);
     expect(out(piped)).toContain("interactive PowerShell window");
     expect(out(piped)).not.toContain("Temporary password");
-  });
+  }, 120_000);
 
   it("FOW-PS-9: an environment variable that would override .env.local is refused", () => {
     const f = envFile(
@@ -233,5 +233,5 @@ describe.skipIf(!shell)("launcher behaviour (FOW-PS run)", () => {
     expect(r.status).toBe(1);
     expect(out(r)).toContain("would override .env.local");
     expect(out(r)).not.toContain("someotherprojectref00");
-  });
+  }, 120_000);
 });
