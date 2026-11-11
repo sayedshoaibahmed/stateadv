@@ -53,7 +53,8 @@ const SUPABASE_STANDIN = `
   create table storage.objects (
     id uuid primary key default gen_random_uuid(),
     bucket_id text references storage.buckets (id),
-    name text, owner uuid, metadata jsonb, created_at timestamptz default now()
+    name text, owner uuid, metadata jsonb, created_at timestamptz default now(),
+    constraint objects_bucket_name unique (bucket_id, name) -- the real service has this index too
   );
   alter table storage.objects enable row level security;
   grant select, insert, update, delete on storage.objects to anon, authenticated, service_role;
