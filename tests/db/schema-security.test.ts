@@ -123,7 +123,13 @@ describe("Row Level Security and privileges (SEC-01..05)", () => {
       "profile_reset_password",
       "profile_set_active",
       "profile_update",
+      "set_resort_active",
       "today_ist",
+      "upsert_agent_partner",
+      "upsert_guest",
+      "upsert_provider",
+      "upsert_resort",
+      "upsert_stay_type",
     ]);
   });
 
