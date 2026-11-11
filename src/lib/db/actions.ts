@@ -47,15 +47,18 @@ export const updateBooking = (
     p_reason: opts.reason ?? null,
   });
 
+/** Going backwards (checked-in → confirmed, checked-out → checked-in) needs a reason of at least 5 characters. */
 export const setBookingStatus = (
   id: string,
   expectedVersion: number,
   status: "confirmed" | "checked_in" | "checked_out",
+  reason?: string,
 ) =>
   run("set_booking_status", {
     p_id: id,
     p_expected_version: expectedVersion,
     p_status: status,
+    p_reason: reason ?? null,
   });
 
 export const cancelBooking = (

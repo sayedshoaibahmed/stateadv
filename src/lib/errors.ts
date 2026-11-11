@@ -25,7 +25,8 @@ export const DB_ERROR_MESSAGES: Record<string, string> = {
   FIRST_USER_MUST_BE_OWNER: "The first account must be an Owner.",
   NEW_USER_MUST_BE_ACTIVE: "A new account must start switched on.",
   // general
-  REASON_REQUIRED: "Please write a reason.",
+  REASON_REQUIRED:
+    "Please write a reason (at least 5 letters; Owner actions and correction files need at least 10).",
   INVALID_INPUT: "Please check what you typed and try again.",
   NOT_FOUND: "We could not find that record.",
   DUPLICATE: "That name already exists.",
@@ -52,7 +53,7 @@ export const DB_ERROR_MESSAGES: Record<string, string> = {
   DISCOUNT_TOO_LARGE: "The discount cannot be more than the total amount.",
   FINAL_NEGATIVE: "The final amount cannot be below zero.",
   ADJUSTMENT_REASON_REQUIRED:
-    "Please give a reason for changing the final amount.",
+    "Please give a reason of at least 5 characters for changing the final amount.",
   CO_TYPE_MISMATCH:
     "Please choose a name from the matching Agent or Partner list.",
   CO_INACTIVE: "This agent or partner is switched off.",
@@ -100,7 +101,7 @@ export const DB_ERROR_MESSAGES: Record<string, string> = {
   REFUND_CHANGED_DURING_DECISION:
     "A refund cannot be edited while it is being approved or rejected.",
   REFUND_TOO_LARGE:
-    "That is more than the approved money still held for this booking.",
+    "That is more than can be refunded now. A running booking can only refund what was paid above the amount due; a cancelled booking can refund the approved money held. Refunds waiting for approval count too.",
   REFUND_NOT_ALLOWED:
     "This booking has not been overpaid, so there is nothing to refund.",
   REVERSAL_EXCEEDS_REFUNDS:

@@ -534,7 +534,7 @@ Every function first checks `is_active_user()`, validates input, locks the rows 
 | Large audit table | Time index. No partitioning needed below about 10M rows. |
 | RLS bypass via views | `security_invoker` views, tested |
 
-## 5a. Implementation notes for the RPC list (2026-11-11, migrations 11–15 — written locally, not yet applied to the hosted project)
+## 5a. Implementation notes for the RPC list (2026-11-11, migrations 11–16 — written locally, not yet applied to the hosted project)
 
 **Differences from the list in section 5** (decisions taken while building; each is also in MIGRATION_REVIEW §13):
 - `log_account_action` was **not** built as a separate function. Every account function writes its own audit entry (`audit_account_action`, internal); `password_reset` and `owner_recovered` are audit actions. The audit trigger now also copies the reason that a function passes in the transaction-local setting `app.reason`.
@@ -544,11 +544,19 @@ Every function first checks `is_active_user()`, validates input, locks the rows 
 - `approve/reject/reverse_payment` and `…_refund` share `decide_payment` / `decide_refund`. They lock the **booking row first**, then the payment/refund row (one fixed order, so two people never deadlock).
 - `register_pdf_version`, `claim_pdf_jobs` and the report functions belong to M6 and M8. Every write function already queues a `pdf_jobs` row.
 
-**Callable by signed-in users (37 of the 82 functions in `public`; everything else is internal)**: `active_owner_count, booking_overdue, cancel_booking, change_cancellation_charge, complete_password_change, create_booking, is_active_user, normalize_mobile, plan_preview, profile_change_email, profile_create, profile_reset_password, profile_set_active, profile_update, set_booking_status, set_payment_schedule, set_resort_active, today_ist, update_booking, upsert_agent_partner, upsert_guest, upsert_provider, upsert_resort, upsert_stay_type` plus the thirteen payment/refund/proof functions. Test SEC-04 lists them **exactly**: adding a function means adding it to that list in the same change. `recover_owner_account` is for the service role only. The service role also keeps Supabase's default rights on the internal helpers (it bypasses the rules anyway; it has the same power as the secret key, which is why that key must stay private).
+**Callable by signed-in users (37 of the 83 functions in `public`; everything else is internal)**: `active_owner_count, booking_overdue, cancel_booking, change_cancellation_charge, complete_password_change, create_booking, is_active_user, normalize_mobile, plan_preview, profile_change_email, profile_create, profile_reset_password, profile_set_active, profile_update, set_booking_status, set_payment_schedule, set_resort_active, today_ist, update_booking, upsert_agent_partner, upsert_guest, upsert_provider, upsert_resort, upsert_stay_type` plus the thirteen payment/refund/proof functions. Test SEC-04 lists them **exactly**: adding a function means adding it to that list in the same change. `recover_owner_account` is for the service role only. The service role also keeps Supabase's default rights on the internal helpers (it bypasses the rules anyway; it has the same power as the secret key, which is why that key must stay private).
 
-**Interpretations I made where the documents were silent** (please confirm or correct):
-1. A payment on a cancelled/no-show booking is accepted only while an unpaid charge remains (FR-PAY-11); an amount above that is a **warning**, not a block.
-2. Status moves allowed by `set_booking_status`: confirmed→checked-in, checked-in→checked-out, and undoing one step (checked-in→confirmed, checked-out→checked-in). Cancelled/no-show only through `cancel_booking`.
-3. A reason for a changed booking amount needs at least 5 characters; protected Owner actions and correction files need 10; other reasons at least 1.
-4. UPI and card payments/refunds must name the payment app (UPI/card network); "Other" needs a typed name.
-5. A refund on an **active** booking is allowed only when approved money exceeds the amount due (Q12); on a cancelled/no-show booking it is allowed up to the money held.
+**Owner decisions on the points the documents left open (approved 2026-11-11) and where each is built**
+
+| # | Decision | Built in | Tests |
+|---|---|---|---|
+| 1 | A payment on a cancelled/no-show booking is accepted only while an unpaid charge remains; an amount above the remaining charge is a **warning**, not a block. | `add_payment` (15) | DEC-1a/b, PAF-09 |
+| 2 | Booking status steps: confirmed→checked-in, checked-in→checked-out, and one step back (checked-in→confirmed, checked-out→checked-in). **Going back needs a reason of at least 5 trimmed characters**, stored in the audit history with the person and the old/new status. A forward step takes no reason (if one is written it must be 5+). Cancelled and no-show only through `cancel_booking`, and they are final. | `set_booking_status(id, version, status, reason)` (14) | DEC-2a..e, BKF-30 |
+| 3 | **Ordinary reasons: at least 5 trimmed characters** (booking amount change, cancellation, no-show charge change, charge correction, plan change, payment/refund edit, reject, reverse, hiding a file, refund reason, manual change of the final amount; optional account reasons too, if written). **Protected Owner actions and correction files: at least 10** (unchanged). | `require_reason`, `optional_reason` (12), 14, 15 | DEC-3a..e |
+| 4 | UPI and card need a valid payment app / card network; "Other" needs a typed name; other methods take none. | `check_provider` (15) | DEC-4, PAF-04 |
+| 5 | **Refund limits.** Active booking: `max(A − D − RA − RW, 0)` (genuine overpayment). Cancelled/no-show: `max(A − RA − RW, 0)` (approved money held). A = approved payments, D = amount due, RA = approved refunds, RW = waiting refunds. Waiting refunds use up the room for more requests but change **no** financial balance (D1). | `guard_refund` replaced in **migration 16**; `add_refund` keeps the friendly "not overpaid" refusal | DEC-5a..g, PAF-30..37, CON-05, 12, 13, 14 |
+
+Notes on decision 5:
+- The limit is enforced in the database guard (cannot be skipped by any caller) under the booking-row lock that `add_refund` and the guard both take, so simultaneous requests take turns. It also applies when the amount of a waiting refund is raised (its own old amount is freed first).
+- "Refund due" in the views (`refund_due_paise`, `refund_still_to_record_paise`) and the warning `ABOVE_REFUND_DUE` are unchanged. For a running booking the hard limit is the same as the old "refund still to record" figure, so that column is the right one for the screen. `refundable_limit_paise` (= A − RA − RW) is the **cancelled** booking limit; screens must not use it for running bookings.
+- Unchanged and worth knowing: reversing a payment (D5) still protects refunds against the money **held** (`A − RA − RW ≥ 0`), as approved, not against `A − D`.

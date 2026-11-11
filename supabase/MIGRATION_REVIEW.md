@@ -315,3 +315,24 @@ Differences between this server and Supabase that remain: migrations run as a su
 
 ### 13.7 Stand-in changes made in this stage
 `storage.objects` now has the `metadata` column and the unique (bucket, name) index that the real service has; roles are created idempotently for the real-server backend.
+
+### 13.8 Owner decisions of 2026-11-11 (migrations 12, 14, 15 edited; migration 16 added)
+Migrations 11–15 had not been applied, so 12, 14 and 15 were edited in place. Migration 06 **is** applied on the hosted project, so the refund guard is replaced by a new migration 16 (`create or replace function`; trigger, owner and privileges unchanged; no data touched).
+
+| Decision | Change |
+|---|---|
+| 2 status undo needs a reason | `set_booking_status` gained `p_reason text default null` (14); undo steps require `require_reason(…, 5)`; the reason travels to the audit entry through `app.reason` |
+| 3 reason lengths | every `require_reason(…, 1)` became 5 in 14 and 15; refund reason and manual-adjustment reason check 5; new internal `optional_reason` (12) for optional account reasons; 10 stays for protected Owner actions and correction files |
+| 5 refund limits | **16**: `guard_refund` reads the booking's amount due and status under the lock and applies `A − D − RA − RW` (running) or `A − RA − RW` (cancelled/no-show), on insert and on raising a waiting refund |
+| 1, 4 | already as approved; now pinned by DEC-1 and DEC-4 |
+
+**Exact difference of migration 16 from the applied guard** (verified by a line diff): the declarations `v_due, v_status, v_max`; the booking select also reads `amount_due_paise` and `status`; the two limit checks; the error detail now reports the real limit. Nothing else.
+
+**Re-verification (local):**
+| Check | Result |
+|---|---|
+| Migrations 01–16 apply on PGlite and on real PostgreSQL 17.11 | yes |
+| Database + concurrency tests on real PostgreSQL 17.11 | 334 pass |
+| New simultaneous-request tests: CON-12 (running booking, 10 refunds → exactly 3 of 30000 fit in 100000), CON-13 (same numbers: running → 1 of 70000, cancelled → 8 of 70000), CON-14 (two waiting refunds raised at once → exactly one) | pass |
+| Existing tests that built refunds on a running, fully paid booking (REF-*, REV-02/03, COR-05, REVERSAL) | updated to cancel the booking first (charge 0), because under decision 5 a running booking cannot refund money that is due |
+| Existing tests with one-to-four-character reasons | fixture text lengthened; no assertion weakened |

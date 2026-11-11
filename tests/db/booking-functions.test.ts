@@ -307,7 +307,10 @@ describe("create_booking", () => {
       ["ADJUSTMENT_REASON_REQUIRED", { manual_adjustment_paise: 100 }],
       [
         "FINAL_NEGATIVE",
-        { manual_adjustment_paise: -600000, manual_adjustment_reason: "x" },
+        {
+          manual_adjustment_paise: -600000,
+          manual_adjustment_reason: "Loyal guest",
+        },
       ],
       ["AMOUNT_TOO_LARGE", { pax: 1000, tariff_paise: 1000000000000000 }],
       ["CO_TYPE_MISMATCH", { co_category: "agent" }],
@@ -575,10 +578,10 @@ describe("update_booking", () => {
     ]);
     // rows that do not match the moved amount are refused
     await expectDbError(
-      call(`select public.set_payment_schedule($1, 2, $2::jsonb, 0, 'x')`, [
-        c.id,
-        JSON.stringify([await row(6, 50000)]),
-      ]),
+      call(
+        `select public.set_payment_schedule($1, 2, $2::jsonb, 0, 'Test reason')`,
+        [c.id, JSON.stringify([await row(6, 50000)])],
+      ),
       "PLAN_TOTAL_MISMATCH",
     );
   });
@@ -586,10 +589,10 @@ describe("update_booking", () => {
   it("BKF-26: new plan rows must be due today or later", async () => {
     const c = await simple();
     await expectDbError(
-      call(`select public.set_payment_schedule($1, 1, $2::jsonb, 0, 'x')`, [
-        c.id,
-        JSON.stringify([await row(-1, 500000)]),
-      ]),
+      call(
+        `select public.set_payment_schedule($1, 1, $2::jsonb, 0, 'Test reason')`,
+        [c.id, JSON.stringify([await row(-1, 500000)])],
+      ),
       "PLAN_DATE_IN_PAST",
     );
   });
@@ -628,10 +631,8 @@ describe("check-in, cancellation and no-show", () => {
         [c.id, v, s],
       );
     await st(1, "checked_in");
-    await expectDbError(
-      st(2, "confirmed").then(() => st(3, "checked_out")),
-      "STATUS_NOT_ALLOWED",
-    );
+    await st(2, "checked_out");
+    await expectDbError(st(3, "confirmed"), "STATUS_NOT_ALLOWED"); // not a single step back
     await expectDbError(st(3, "cancelled"), "STATUS_NOT_ALLOWED");
     await expectDbError(st(3, "no_show"), "STATUS_NOT_ALLOWED");
     await expectDbError(st(1, "checked_in"), "STALE_RECORD");
@@ -692,15 +693,15 @@ describe("check-in, cancellation and no-show", () => {
     const cancel = (args: string, p: unknown[] = []) =>
       call(`select public.cancel_booking($1, 1, ${args})`, [c.id, ...p]);
     await expectDbError(
-      cancel(`'cancelled', null, null, 'x'`),
+      cancel(`'cancelled', null, null, 'Test reason'`),
       "CHARGE_REQUIRED",
     );
     await expectDbError(
-      cancel(`'cancelled', null, 500001, 'x'`),
+      cancel(`'cancelled', null, 500001, 'Test reason'`),
       "CHARGE_OUT_OF_RANGE",
     );
     await expectDbError(
-      cancel(`'cancelled', null, -1, 'x'`),
+      cancel(`'cancelled', null, -1, 'Test reason'`),
       "CHARGE_OUT_OF_RANGE",
     );
     await expectDbError(
@@ -708,15 +709,18 @@ describe("check-in, cancellation and no-show", () => {
       "REASON_REQUIRED",
     );
     await expectDbError(
-      cancel(`'cancelled', public.today_ist() + 1, 0, 'x'`),
+      cancel(`'cancelled', public.today_ist() + 1, 0, 'Test reason'`),
       "CANCELLATION_DATE_FUTURE",
     );
-    await expectDbError(cancel(`'confirmed', null, 0, 'x'`), "INVALID_INPUT");
     await expectDbError(
-      cancel(`'cancelled', null, 100000, 'x'`),
+      cancel(`'confirmed', null, 0, 'Test reason'`),
+      "INVALID_INPUT",
+    );
+    await expectDbError(
+      cancel(`'cancelled', null, 100000, 'Test reason'`),
       "PLAN_TOTAL_MISMATCH",
     ); // future rows must be re-planned
-    await cancel(`'cancelled', null, 0, 'x'`);
+    await cancel(`'cancelled', null, 0, 'Test reason'`);
     await expectDbError(
       call(
         `select public.cancel_booking($1, 2, 'cancelled', null, 0, 'again')`,
@@ -725,7 +729,7 @@ describe("check-in, cancellation and no-show", () => {
       "STATUS_FINAL",
     );
     await expectDbError(
-      upd(c.id, 2, { pax: 5 }, null, 0, "x"),
+      upd(c.id, 2, { pax: 5 }, null, 0, "Test reason"),
       "CANCELLED_AMOUNTS_LOCKED",
     );
   });
@@ -765,9 +769,10 @@ describe("check-in, cancellation and no-show", () => {
       "REASON_REQUIRED",
     );
     await expectDbError(
-      call(`select public.change_cancellation_charge($1, 2, 600000, 'Fix')`, [
-        c.id,
-      ]),
+      call(
+        `select public.change_cancellation_charge($1, 2, 600000, 'Fix charge')`,
+        [c.id],
+      ),
       "CHARGE_OUT_OF_RANGE",
     );
     await call(
@@ -784,9 +789,10 @@ describe("check-in, cancellation and no-show", () => {
     );
     const open = await simple();
     await expectDbError(
-      call(`select public.change_cancellation_charge($1, 1, 0, 'x')`, [
-        open.id,
-      ]),
+      call(
+        `select public.change_cancellation_charge($1, 1, 0, 'Test reason')`,
+        [open.id],
+      ),
       "STATUS_NOT_ALLOWED",
     );
   });

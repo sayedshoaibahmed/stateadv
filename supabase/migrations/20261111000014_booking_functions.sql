@@ -187,7 +187,7 @@ declare
   v_rev     uuid := gen_random_uuid();
   v_unpaid  bigint;
   v_line0   int;
-  v_reason  text := public.require_reason(p_reason, 1);
+  v_reason  text := public.require_reason(p_reason, 5);
   v_move    bigint := coalesce(p_move, 0);
 begin
   select b.amount_due_paise into v_due from public.bookings b where b.id = p_booking;
@@ -290,8 +290,8 @@ begin
   if p_discount > v_base + p_extra then
     raise exception 'DISCOUNT_TOO_LARGE' using detail = 'The discount cannot be more than the total amount.';
   end if;
-  if p_adjustment <> 0 and public.pl_text(jsonb_build_object('r', p_adjustment_reason), 'r') is null then
-    raise exception 'ADJUSTMENT_REASON_REQUIRED' using detail = 'Please give a reason for changing the final amount.';
+  if p_adjustment <> 0 and length(btrim(coalesce(p_adjustment_reason, ''))) < 5 then
+    raise exception 'ADJUSTMENT_REASON_REQUIRED' using detail = 'Please give a reason of at least 5 characters for changing the final amount.';
   end if;
   v_final := v_base + p_extra - p_discount + p_adjustment;
   if v_final < 0 then
@@ -574,11 +574,11 @@ grant execute on function public.update_booking(uuid, int, jsonb, jsonb, bigint,
 -- set_booking_status: check-in / check-out and undoing one step by mistake.
 -- Cancelled and No-show are final and only reachable through cancel_booking.
 -- ---------------------------------------------------------------------------
-create function public.set_booking_status(p_id uuid, p_expected_version int, p_status public.booking_status)
+create function public.set_booking_status(p_id uuid, p_expected_version int, p_status public.booking_status, p_reason text default null)
 returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
-declare cur public.bookings;
+declare cur public.bookings; v_reason text;
 begin
   perform public.require_active_user();
   select * into cur from public.bookings where id = p_id for update;
@@ -591,13 +591,20 @@ begin
         ('checked_in', 'confirmed'), ('checked_out', 'checked_in'))) then
     raise exception 'STATUS_NOT_ALLOWED' using detail = 'This status change is not allowed.';
   end if;
+  -- Undoing a step (going backwards) needs a written reason of at least 5 characters; it is stored in the audit history.
+  if (cur.status, p_status) in (('checked_in', 'confirmed'), ('checked_out', 'checked_in')) then
+    v_reason := public.require_reason(p_reason, 5);
+  else
+    v_reason := public.optional_reason(p_reason);
+  end if;
+  perform set_config('app.reason', coalesce(v_reason, ''), true);
   update public.bookings set status = p_status where id = p_id;
   perform public.queue_pdf_job(p_id, 'status changed');
   return jsonb_build_object('id', p_id, 'version', cur.version + 1);
 end
 $$;
-revoke all on function public.set_booking_status(uuid, int, public.booking_status) from public, anon, authenticated;
-grant execute on function public.set_booking_status(uuid, int, public.booking_status) to authenticated;
+revoke all on function public.set_booking_status(uuid, int, public.booking_status, text) from public, anon, authenticated;
+grant execute on function public.set_booking_status(uuid, int, public.booking_status, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- cancel_booking (Q7, Q7a, Q7c). The original amounts are never touched; the charge becomes the Amount Due.
@@ -614,7 +621,7 @@ as $$
 declare
   cur public.bookings;
   v_charge bigint;
-  v_reason text := public.require_reason(p_reason, 1);
+  v_reason text := public.require_reason(p_reason, 5);
   v_date date := coalesce(p_date, public.today_ist());
   v_rev uuid;
 begin
@@ -642,7 +649,7 @@ begin
     raise exception 'CHARGE_OUT_OF_RANGE' using detail = 'The charge must be between zero and the final booking amount.';
   end if;
   if p_kind = 'no_show' and v_charge <> cur.final_amount_paise then
-    perform public.require_reason(p_charge_change_reason, 1);
+    perform public.require_reason(p_charge_change_reason, 5);
   end if;
 
   update public.bookings set
@@ -672,7 +679,7 @@ language plpgsql security definer set search_path = ''
 as $$
 declare
   cur public.bookings;
-  v_reason text := public.require_reason(p_reason, 1);
+  v_reason text := public.require_reason(p_reason, 5);
   v_rev uuid;
 begin
   perform public.require_active_user();
@@ -717,7 +724,7 @@ begin
   end if;
   v_rev := public.apply_plan_change(
     p_id, case when coalesce(p_move_overdue, 0) > 0 then 'move_overdue' else 'plan_change' end, 'plan_change',
-    public.require_reason(p_reason, 1), p_plan,
+    public.require_reason(p_reason, 5), p_plan,
     case when cur.status in ('cancelled', 'no_show') then 'cancellation'::public.plan_kind else 'booking'::public.plan_kind end,
     p_move_overdue);
   update public.bookings set updated_at = now() where id = p_id;   -- bumps the version

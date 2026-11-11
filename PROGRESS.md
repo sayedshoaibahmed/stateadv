@@ -8,23 +8,23 @@ Last updated: 2026-11-11
 ### What exists, and where it has been verified
 | Level | State |
 |---|---|
-| **Hosted dev project** (PostgreSQL 17.11) | Migrations **01–10 applied** and verified read-only. Migrations **11–15 are NOT applied** (dry run on 2026-11-11 lists exactly those five). No Owner account. Signup disabled. |
+| **Hosted dev project** (PostgreSQL 17.11) | Migrations **01–10 applied** and verified read-only. Migrations **11–16 are NOT applied** (dry run on 2026-11-11 lists exactly those six). No Owner account. Signup disabled. |
 | **GitHub** | `origin/main` is at `92ecd3d`. **Nothing newer has been pushed.** The new PostgreSQL 17 CI job has therefore never run on GitHub. |
-| **Local, real PostgreSQL 17.11** (throw-away server) | All 300 database tests + 11 concurrency tests pass (311). The concurrency tests fail when the locks are removed (checked). |
-| **Local, PGlite** | 443 tests pass (11 concurrency tests are skipped there: they need real connections). Mutation check: 31 of 31 weakened versions caught. |
+| **Local, real PostgreSQL 17.11** (throw-away server) | All database tests + 14 concurrency tests pass (334). The concurrency tests fail when the locks are removed (checked). |
+| **Local, PGlite** | 463 tests pass (14 concurrency tests are skipped there: they need real connections). Mutation check: 42 of 42 weakened versions caught. |
 | Lint, types, format, production build, browser-bundle scan, migration check | pass |
 | `npm audit --omit=dev` | 0 findings. Dev-only: 3 advisories inside the `shadcn` command-line tool (not shipped; the suggested fix is a breaking major version). |
 
 ### Built in M2 so far (all local)
 - Sign in/out, forgot password (Owner accounts only), reset link, forced password change, My Account (own password, own email by the verified process), People pages (add, edit, role, switch on/off, reset password, change email), history, Owner notices on the home page.
-- Migrations 11–15 add 57 functions (82 in schema `public` in total; 37 are callable by signed-in users, the rest are internal helpers or table guards): accounts, master data, bookings, plan, payments, refunds, approvals, proof files, correction files. All writes go through them; app users still have no direct table write.
+- Migrations 11–16 add 58 functions (83 in schema `public` in total; 37 are callable by signed-in users, the rest are internal helpers or table guards): accounts, master data, bookings, plan, payments, refunds, approvals, proof files, correction files. All writes go through them; app users still have no direct table write.
 - Storage code (server-chosen names, signed upload, real content check, 60-second links), typed database-call layer, plain-English errors (a test checks every database error code has a message).
 - Scripts (written and tested with fakes, **never run against the hosted project**): `scripts/create-first-user.ts`, `scripts/recover-owner.ts`.
 
 ### Blocked on you
 | # | Action | Needed for |
 |---|---|---|
-| 1 | Approve applying migrations 11–15 (dry run done) | everything that needs the new functions on the hosted project |
+| 1 | Approve applying migrations 11–16 (dry run done) | everything that needs the new functions on the hosted project |
 | 2 | Approve pushing the local commits | CI incl. PostgreSQL 17 job |
 | 3 | Replace the dev Secret Key, then approve the first-Owner run | the real Owner account |
 | 4 | Two mailboxes; allow throw-away test users | RSV-08, RSV-06 (second half), RSV-07 |

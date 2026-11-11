@@ -8,6 +8,7 @@ import {
   addPayment,
   addProof,
   addRefund,
+  cancelBooking,
   createBooking,
   setStatus,
   setupWorld,
@@ -514,6 +515,9 @@ describe("refunds (REF-*, Q7, Q7b, Q12, D1)", () => {
     const b = await createBooking(w);
     const p = await addPayment(w, b, { amount });
     await setStatus(w, "payments", p, "approved", w.owner);
+    // Cancelled with a zero charge, so the approved money is "held" and refundable up to A - RA - RW.
+    // (A RUNNING booking can only refund genuine overpayment: see tests/db/refund-limits.test.ts.)
+    await cancelBooking(w, b, { charge: 0 });
     return b;
   }
 
@@ -634,6 +638,7 @@ describe("refunds (REF-*, Q7, Q7b, Q12, D1)", () => {
     const p2 = await addPayment(w, b, { amount: 200000 });
     await setStatus(w, "payments", p1, "approved", w.owner);
     await setStatus(w, "payments", p2, "approved", w.owner);
+    await cancelBooking(w, b, { charge: 0 }); // approved money is held, so it can be refunded
     const rf = await addRefund(w, b, { amount: 400000 });
     await setStatus(w, "refunds", rf, "approved", w.owner);
     await expectDbError(

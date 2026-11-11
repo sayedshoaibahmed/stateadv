@@ -65,7 +65,12 @@ export const optionalReason = z.object({
     .trim()
     .max(500, "That reason is too long.")
     .optional()
-    .transform((v) => (v ? v : undefined)),
+    .transform((v) => (v ? v : undefined))
+    // optional, but if written it must be at least 5 characters (owner decision 2026-11-11)
+    .refine(
+      (v) => v === undefined || v.length >= 5,
+      "Please write at least 5 characters, or leave it empty.",
+    ),
 });
 
 export const changeEmailSchema = z.object({

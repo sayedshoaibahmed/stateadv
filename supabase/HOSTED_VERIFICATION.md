@@ -7,12 +7,12 @@ Rules for every check
 - Test accounts use addresses you control (`you+owner-test@…`). Delete nothing: switch test people off instead; the system never deletes records.
 - Do not mark a check as passed unless its "pass" line was actually observed.
 
-## 0. Before anything: apply migrations 11–15 (needs your approval)
+## 0. Before anything: apply migrations 11–16 (needs your approval)
 | Step | Pass |
 |---|---|
-| `supabase migration list` and `db push --dry-run --skip-vault` | lists exactly migrations 11–15 (**done 2026-11-11**) |
-| `db push --skip-vault --yes` (after approval) | five "Applying migration…" lines, exit 0 |
-| Read-only: function count | 82 functions in `public`; 37 callable by signed-in users (the list in test SEC-04); only `recover_owner_account` is service-role only; none callable by `anon` |
+| `supabase migration list` and `db push --dry-run --skip-vault` | lists exactly migrations 11–16 (**done 2026-11-11**, six files) |
+| `db push --skip-vault --yes` (after approval) | six "Applying migration…" lines, exit 0 |
+| Read-only: function count | 83 functions in `public`; 37 callable by signed-in users (the list in test SEC-04); only `recover_owner_account` is service-role only; none callable by `anon` |
 | Read-only: `db advisors` | no errors or warnings (INFO notes reviewed) |
 | Read-only: anonymous REST probe of one new function | HTTP 401/permission denied |
 
@@ -56,6 +56,9 @@ Rules for every check
 
 ## 5. Money functions through the app or API (needs the Owner, a Manager, one resort) — status: not run
 Use `plan_preview`/`create_booking` etc. via the Server Actions once screens exist, or with a signed-in API client. Pass criteria are the same as the PAF/BKF tests: server-built Booking ID, amounts recalculated, plan must balance, waiting refunds change no balance, reversal blocked while refunds depend on it, correction files change no figure. Audit rows carry the real user.
+
+### 5a. Refund limits on the real project (decision 5) — status: not run
+With a throw-away booking (amount due 5,000; approved payments 7,000): a running booking accepts refunds up to 2,000 in total (waiting ones count) and refuses the next rupee; after cancelling it with a 5,000 charge the same booking accepts up to 7,000. Two people recording refunds at the same moment never exceed the limit.
 
 ## 6. Storage (RSV-07; needs a signed-in user) — status: not run
 | # | Do | Pass |

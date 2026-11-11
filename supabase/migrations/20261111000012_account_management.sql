@@ -94,6 +94,21 @@ end
 $$;
 revoke all on function public.require_reason(text, int) from public, anon, authenticated;
 
+-- An ordinary reason that is optional: blank = none; if written, at least 5 characters (owner decision 2026-11-11).
+create function public.optional_reason(p_reason text)
+returns text
+language plpgsql immutable
+set search_path = ''
+as $$
+begin
+  if btrim(coalesce(p_reason, '')) = '' then
+    return null;
+  end if;
+  return public.require_reason(p_reason, 5);
+end
+$$;
+revoke all on function public.optional_reason(text) from public, anon, authenticated;
+
 -- Writes one explicit audit entry for an account action that does not (always) change a row.
 create function public.audit_account_action(p_target uuid, p_action text, p_reason text)
 returns void
@@ -168,7 +183,7 @@ begin
   if p_role = 'owner' then
     v_reason := public.require_reason(p_reason, 10);   -- O6
   else
-    v_reason := nullif(btrim(coalesce(p_reason, '')), '');
+    v_reason := public.optional_reason(p_reason);
   end if;
   perform set_config('app.reason', coalesce(v_reason, ''), true);
 
@@ -218,7 +233,7 @@ begin
     end if;
     v_reason := public.require_reason(p_reason, 10);
   else
-    v_reason := nullif(btrim(coalesce(p_reason, '')), '');
+    v_reason := public.optional_reason(p_reason);
   end if;
   perform set_config('app.reason', coalesce(v_reason, ''), true);
 
@@ -304,7 +319,7 @@ begin
   if cur.role = 'owner' then
     v_reason := public.require_reason(p_reason, 10);   -- O3
   else
-    v_reason := nullif(btrim(coalesce(p_reason, '')), '');
+    v_reason := public.optional_reason(p_reason);
   end if;
   perform set_config('app.reason', coalesce(v_reason, ''), true);
 
@@ -355,7 +370,7 @@ begin
     end if;
     v_reason := public.require_reason(p_reason, 10);   -- O3
   else
-    v_reason := nullif(btrim(coalesce(p_reason, '')), '');
+    v_reason := public.optional_reason(p_reason);
   end if;
   perform set_config('app.reason', coalesce(v_reason, ''), true);
 

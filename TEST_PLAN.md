@@ -341,9 +341,23 @@ Flows F1–F10 (UI spec §4) on desktop and mobile. Plus: keyboard-only booking 
 | CON-01..11 | simultaneous requests: booking numbers, double Save, double approval, refund limit, Owner race, reversal vs refund, payment numbers, same-version edits, plan changes, same file | skipped (one connection) | ✅ | after apply |
 | ACU-01..12, STO-U1..U10, ERR-01..04, DBC-01..04, FUO-01..06, REC-01..04 | rules and script logic with stand-ins | unit | — | — |
 
-**Mutation checks**: 31 weakened copies of the migrations are all caught by the PGlite tests; five locking weakenings were run against real PostgreSQL 17 (see MIGRATION_REVIEW §13.6).
+**Mutation checks**: 42 weakened copies of the migrations are all caught by the PGlite tests; five locking weakenings were run against real PostgreSQL 17 (see MIGRATION_REVIEW §13.6).
 
 **How to run**
 - Everything quick (PGlite): `npm test`
 - Real PostgreSQL 17 (start a throw-away server, then): `STATEADV_PG_URL=postgres://… npm run test:pg17`. The harness refuses any Supabase host.
 - Hosted checks: see `supabase/HOSTED_VERIFICATION.md`.
+
+## 2.17 Owner decisions of 2026-11-11 (tests/db/owner-decisions.test.ts and concurrency.pg.test.ts)
+| IDs | What | PGlite | Real PG 17 (local) |
+|---|---|---|---|
+| DEC-1a/b | cancelled booking: payment allowed while a charge is unpaid; above it only a warning; refused when nothing is unpaid | ✅ | ✅ |
+| DEC-2a..e | status steps; undo needs 5+ trimmed characters; audit shows action, reason, person, old/new status; a failed undo changes nothing and the reason does not leak into later changes; cancelled/no-show unreachable here | ✅ | ✅ |
+| DEC-3a..e | every ordinary reason refuses 0–4 trimmed characters and accepts 5; optional account reasons; 9 refused / 10 accepted for protected Owner actions and correction files | ✅ | ✅ |
+| DEC-4 | provider rules for UPI and card, "Other" needs a name, other methods take none | ✅ | ✅ |
+| DEC-5a | same numbers (A=700000, D=500000): running limit 200000, cancelled limit 700000 | ✅ | ✅ |
+| DEC-5b | waiting refunds use up room, change no balance (D1) on both kinds | ✅ | ✅ |
+| DEC-5c..g | approved/rejected/reversed effects; not overpaid = no refund; editing a waiting refund; **direct insert skipping the function is refused**; a booking that becomes cancelled switches limit | ✅ | ✅ |
+| CON-12..14 | simultaneous refunds on a running booking; same numbers running vs cancelled; simultaneous edits of two waiting refunds | skipped | ✅ |
+
+Mutation check now has 42 weakened versions (11 added for these decisions).

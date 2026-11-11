@@ -512,4 +512,4 @@ You asked for extra protection for Owner accounts. To make that protection actua
 With these rules, a Manager can still add, edit, disable, enable and reset **Manager** accounts, exactly as decided in Q10.
 
 ## 13. Build notes (2026-11-11)
-Interpretations made while building M2 where this document was silent are listed in DATABASE_SCHEMA.md section 5a (payments on cancelled bookings, allowed status steps, minimum reason lengths, payment-app rules, refunds on active bookings). They are open for the owner to confirm or change.
+Five points the documents left open were decided by the owner on 2026-11-11 (payments on cancelled bookings, status steps and the reason for undoing one, minimum reason lengths, payment-app rules, refund limits). They are recorded, with where each is built and tested, in DATABASE_SCHEMA.md section 5a.

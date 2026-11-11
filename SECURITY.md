@@ -223,4 +223,4 @@ Never in browser code (the bundle scan checks), never for ordinary reads or writ
 - No rate limiting of our own on password re-checks: Supabase Auth's limits apply.
 - `GET /auth/blocked` ends the caller's own session (a harmless "sign-out CSRF").
 - The built-in Supabase email sender reaches only Supabase-team addresses and is rate-limited; production needs a custom sender (Q11).
-- The migrations run on a superuser in my PostgreSQL 17 tests, but as the non-superuser `postgres` on Supabase. Supabase's own settings allow the storage policies and the `auth.users` trigger (verified for 01–10). Migrations 11–15 create only functions, grants and a replaced trigger function, but the first apply is still the real proof.
+- The migrations run on a superuser in my PostgreSQL 17 tests, but as the non-superuser `postgres` on Supabase. Supabase's own settings allow the storage policies and the `auth.users` trigger (verified for 01–10). Migrations 11–16 create only functions, grants and a replaced trigger function, but the first apply is still the real proof.

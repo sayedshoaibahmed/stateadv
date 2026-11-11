@@ -6,21 +6,21 @@ M2 is **one milestone**. This is a working audit, generated from the data in the
 |---|---|
 | Last updated | 2026-11-11 |
 | Branch | `main` (local commits ahead of `origin/main` at `92ecd3d`; **nothing pushed**) |
-| Hosted dev database | PostgreSQL 17.11; **migrations 01–10 applied and verified**; **migrations 11–15 written, tested locally and dry-run only — NOT applied** |
+| Hosted dev database | PostgreSQL 17.11; **migrations 01–10 applied and verified**; **migrations 11–16 written, tested locally and dry-run only — NOT applied** |
 | Hosted Auth (read-only) | signup disabled; email login only; **no Owner account exists** |
 
 ## Headline
 
 | Measure | Result |
 |---|---|
-| M2 requirements in scope | **52** (plus 2 that belong to later milestones) |
+| M2 requirements in scope | **53** (plus 2 that belong to later milestones) |
 | Fully complete (verified at every level possible without your approval) | **3** |
-| Built and tested locally / on real PostgreSQL 17, **not yet verified on the hosted project** | **46** |
+| Built and tested locally / on real PostgreSQL 17, **not yet verified on the hosted project** | **47** |
 | Not done | **3** |
 | **Built and locally verified** | **94%** |
 | **Fully verified (counting hosted checks)** | **6%** |
 
-**M2 is NOT complete.** The remaining steps are outside what I may do alone: apply migrations 11–15 (needs your approval), rotate the secret key and create the real Owner (separate approval), push (approval), and the checks that need real accounts, mailboxes or a Storage login.
+**M2 is NOT complete.** The remaining steps are outside what I may do alone: apply migrations 11–16 (needs your approval), rotate the secret key and create the real Owner (separate approval), push (approval), and the checks that need real accounts, mailboxes or a Storage login.
 
 Status key: ✅ complete · 🟡 built and tested locally, hosted verification pending · ❌ not done · ➡️ belongs to a later milestone
 
@@ -93,28 +93,29 @@ Status key: ✅ complete · 🟡 built and tested locally, hosted verification p
 | E4 | D4 nights from IST calendar days, never typed | `calc_booking_amounts` | BKF-03/04/09 (23:30 IST → 00:30 IST = 1 night) | — | 🟡 |
 | E5 | D5 payment cannot be reversed while refunds depend on it, also against a simultaneous refund | `guard_payment` | REV-*, PAF-36, CON-07 | — | 🟡 |
 | E6 | Q9a original proofs immutable; corrections need 10+ char reason; never change balances | guards + function | COR-*, PAF-42 | — | 🟡 |
-| E7 | Amounts in paise; Booking IDs server-built, unique, per resort and year, gap-free | migrations 03/14 | BKF-01/05/07, CON-01 (20 simultaneous bookings → 20 distinct gap-free numbers) | — | 🟡 |
+| E7 | Owner decisions of 2026-11-11: payments on cancelled bookings, status undo needs a reason, reasons 5/10 characters, payment apps, refund limits (running A-D-RA-RW; cancelled A-RA-RW) | migrations 12, 14, 15, 16 | DEC-1..5 (PGlite + PG17); CON-12..14 (real PG17: simultaneous refunds on both kinds of booking); 11 mutation checks | Apply to hosted | 🟡 |
+| E8 | Amounts in paise; Booking IDs server-built, unique, per resort and year, gap-free | migrations 03/14 | BKF-01/05/07, CON-01 (20 simultaneous bookings → 20 distinct gap-free numbers) | — | 🟡 |
 
 ## F. Real-environment verification (TEST_PLAN §2.13b)
 
 | # | Requirement | Where | Tests | Missing | Status |
 |---|---|---|---|---|---|
-| RSV-01/02 | Dry run and apply (migrations 01–10) | hosted | done on 2026-11-11 | Migrations 11–15: dry run done today (lists exactly those five); apply awaits your approval | ✅ |
-| RSV-03 | Whole database suite on PostgreSQL 17 | tests/db with STATEADV_PG_URL; CI job defined | 311 tests pass on a local throw-away PostgreSQL 17.11 (same version as Supabase) | The GitHub Actions job has not run yet (needs a push) | 🟡 |
-| RSV-04 | Concurrency tests | tests/db/concurrency.pg.test.ts | 11 tests pass on real PostgreSQL 17.11; removing the locks makes them fail (checked) | GitHub Actions run pending | 🟡 |
-| RSV-05 | Privilege queries on hosted | hosted | done for 01–10 | Re-run after migrations 11–15 are applied | 🟡 |
+| RSV-01/02 | Dry run and apply (migrations 01–10) | hosted | done on 2026-11-11 | Migrations 11–16: dry run done today (lists exactly those six); apply awaits your approval | ✅ |
+| RSV-03 | Whole database suite on PostgreSQL 17 | tests/db with STATEADV_PG_URL; CI job defined | 334 tests pass on a local throw-away PostgreSQL 17.11 (same version as Supabase) | The GitHub Actions job has not run yet (needs a push) | 🟡 |
+| RSV-04 | Concurrency tests | tests/db/concurrency.pg.test.ts | 14 tests pass on real PostgreSQL 17.11; removing the locks makes them fail (checked) | GitHub Actions run pending | 🟡 |
+| RSV-05 | Privilege queries on hosted | hosted | done for 01–10 | Re-run after migrations 11–16 are applied | 🟡 |
 | RSV-06 | Anonymous REST probes; a login without a profile sees 0 rows | hosted | anonymous half done (HTTP 401) | The 'login without a profile' half needs a throw-away user | 🟡 |
 | RSV-07 | Storage probes with a real login | hosted | — | Needs a user: after the first Owner exists or with a throw-away test user (will ask first) | ❌ |
 | RSV-08 | Real email change with two mailboxes | hosted | — | Needs two real mailboxes | ❌ |
-| RSV-09 | Supabase advisors | hosted | done for 01–10 (no errors/warnings) | Re-run after 11–15 | 🟡 |
-| RSV-10 | Exposed API surface | hosted | done for 01–10 | Re-run after 11–15 (SEC-04 lists the 25 allowed functions locally) | 🟡 |
+| RSV-09 | Supabase advisors | hosted | done for 01–10 (no errors/warnings) | Re-run after 11–16 | 🟡 |
+| RSV-10 | Exposed API surface | hosted | done for 01–10 | Re-run after 11–16 (SEC-04 lists the 37 allowed functions locally) | 🟡 |
 | RSV-11 | IST midnight boundaries | — | IST rules covered by unit tests and BKF-04; today_ist() read on hosted | A true midnight test needs a clock we can set (not built) | ❌ |
 
 ## What I need from you (nothing below has been done)
 
 | Step | Why |
 |---|---|
-| Approve applying migrations 11–15 to the dev project | Dry run lists exactly: 11 account_self_service, 12 account_management, 13 master_data_functions, 14 booking_functions, 15 payment_refund_functions. Nothing destructive; each file is one transaction. |
+| Approve applying migrations 11–16 to the dev project | Dry run lists exactly: 11 account_self_service, 12 account_management, 13 master_data_functions, 14 booking_functions, 15 payment_refund_functions, 16 refund_limits. Nothing destructive; each file is one transaction. |
 | Approve pushing the local commits | CI (including the new PostgreSQL 17 job) can then run on GitHub |
 | Replace the dev Secret Key, then approve the first-Owner run | Your own rule; the script asks for it before it creates anything |
 | Provide two mailboxes for RSV-08 and allow throw-away test users for RSV-06/07 | Cannot be done without them |

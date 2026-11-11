@@ -64,9 +64,9 @@ const MUTATIONS = [
   },
   {
     name: "refund limit check removed",
-    file: "06",
-    from: "    if new.amount_paise > sum_a - sum_ra - sum_rw then",
-    to: "    if false then",
+    file: "16",
+    from: "    if new.amount_paise > v_max then\n      raise exception 'REFUND_TOO_LARGE'",
+    to: "    if false then\n      raise exception 'REFUND_TOO_LARGE'",
   },
   {
     name: "approved payments editable",
@@ -218,10 +218,85 @@ const MUTATIONS = [
     from: "v_reason := public.require_reason(p_reason, 10);\n  select * into pr from public.proof_parent(p_kind, p_parent);\n  perform 1 from public.bookings",
     to: "v_reason := public.require_reason(p_reason, 0);\n  select * into pr from public.proof_parent(p_kind, p_parent);\n  perform 1 from public.bookings",
   },
+  // ---- owner decisions of 2026-11-11 (migrations 12, 14, 15, 16) -------------
+  {
+    name: "running bookings use the cancelled-booking refund limit (decision 5)",
+    file: "16",
+    from: "v_max := greatest(sum_a - b.amount_due_paise - sum_ra - sum_rw, 0);",
+    to: "v_max := greatest(sum_a - sum_ra - sum_rw, 0);",
+  },
+  {
+    name: "running-booking refund limit ignores waiting refunds (decision 5)",
+    file: "16",
+    from: "v_max := greatest(sum_a - b.amount_due_paise - sum_ra - sum_rw, 0);",
+    to: "v_max := greatest(sum_a - b.amount_due_paise - sum_ra, 0);",
+  },
+  {
+    name: "editing a waiting refund on a running booking skips the amount-due limit (decision 5)",
+    file: "16",
+    from: "v_max := greatest(sum_a - v_due - sum_ra - (sum_rw - old.amount_paise), 0);",
+    to: "v_max := greatest(sum_a - sum_ra - (sum_rw - old.amount_paise), 0);",
+  },
+  {
+    name: "cancelled bookings use the running-booking refund limit (decision 5)",
+    file: "16",
+    from: "v_max := greatest(sum_a - sum_ra - sum_rw, 0);\n    else",
+    to: "v_max := greatest(sum_a - b.amount_due_paise - sum_ra - sum_rw, 0);\n    else",
+  },
+  {
+    name: "undoing a status step no longer needs a reason (decision 2)",
+    file: "14",
+    from: "    v_reason := public.require_reason(p_reason, 5);\n  else\n    v_reason := public.optional_reason(p_reason);",
+    to: "    v_reason := public.optional_reason(p_reason);\n  else\n    v_reason := public.optional_reason(p_reason);",
+  },
+  {
+    name: "booking reasons back to 1 character, in every layer (decision 3)",
+    file: "14",
+    all: true,
+    from: "require_reason(p_reason, 5)",
+    to: "require_reason(p_reason, 1)",
+  },
+  {
+    name: "refund reason no longer needs 5 characters (decision 3)",
+    file: "15",
+    from: "if v_reason is null or length(v_reason) < 5 then",
+    to: "if v_reason is null then",
+  },
+  {
+    name: "reject/reverse reason back to 1 character (decision 3)",
+    file: "15",
+    from: "    p_reason := public.require_reason(p_reason, 5);",
+    to: "    p_reason := public.require_reason(p_reason, 1);",
+  },
+  {
+    name: "optional account reasons accepted at any length (decision 3)",
+    file: "12",
+    from: "  return public.require_reason(p_reason, 5);",
+    to: "  return nullif(btrim(p_reason), '');",
+  },
+  {
+    name: "payment app 'Other' without a name accepted (decision 4)",
+    file: "15",
+    from: "if v_name = 'Other' and p_other is null then",
+    to: "if false then",
+  },
+  {
+    name: "payment on a cancelled booking with nothing unpaid accepted (decision 1)",
+    file: "15",
+    from: "    if v_pending = 0 then",
+    to: "    if false then",
+  },
 ];
 
 let problems = 0;
-for (const m of MUTATIONS) {
+const ONLY = (process.env.MUTATION_ONLY ?? "")
+  .split(",")
+  .map((x) => x.trim())
+  .filter(Boolean);
+const SELECTED = MUTATIONS.filter(
+  (x) => ONLY.length === 0 || ONLY.some((o) => x.name.includes(o)),
+);
+for (const m of SELECTED) {
   const dir = mkdtempSync(join(tmpdir(), "stateadv-mut-"));
   try {
     cpSync(SRC, dir, { recursive: true });
@@ -233,7 +308,7 @@ for (const m of MUTATIONS) {
       throw new Error(`mutation anchor not found for "${m.name}"`);
     writeFileSync(
       join(dir, file),
-      text.replace(m.from, () => m.to),
+      m.all ? text.split(m.from).join(m.to) : text.replace(m.from, () => m.to),
     );
 
     const r = spawnSync("npx", ["vitest", "run", "tests/db"], {
@@ -262,7 +337,7 @@ for (const m of MUTATIONS) {
 }
 console.log(
   problems === 0
-    ? `\nAll ${MUTATIONS.length} weakened versions were caught by the tests.`
+    ? `\nAll ${SELECTED.length} weakened versions were caught by the tests${SELECTED.length < MUTATIONS.length ? ` (a selection; ${MUTATIONS.length} exist)` : ""}.`
     : `\n${problems} problem(s): a weakened version survived, or a mutation was invalid.`,
 );
 process.exit(problems === 0 ? 0 : 1);

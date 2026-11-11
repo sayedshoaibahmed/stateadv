@@ -456,7 +456,7 @@ describe("approving payments", () => {
     await approvePay(a.id, 1, w.owner);
     await expectDbError(approvePay(a.id, 1, w.manager2), "ALREADY_DECIDED");
     await expectDbError(
-      call(`select public.reject_payment($1, 1, 'late')`, [a.id]),
+      call(`select public.reject_payment($1, 1, 'Too late now')`, [a.id]),
       "ALREADY_DECIDED",
     );
     const e = await call(`select public.approve_payment($1, 1)`, [a.id]).catch(
@@ -465,7 +465,7 @@ describe("approving payments", () => {
     expect(String(e)).toContain("ALREADY_DECIDED");
     const stale = await addPayment(b);
     await call(
-      `select public.update_waiting_payment($1, 1, $2::jsonb, 'fix')`,
+      `select public.update_waiting_payment($1, 1, $2::jsonb, 'Fix amount')`,
       [stale.id, j({ remarks: "x" })],
     );
     await expectDbError(approvePay(stale.id, 1), "STALE_RECORD");
@@ -486,7 +486,7 @@ describe("approving payments", () => {
     });
     await expectDbError(approvePay(a.id, 2), "ALREADY_DECIDED");
     await expectDbError(
-      call(`select public.reverse_payment($1, 2, 'x')`, [a.id]),
+      call(`select public.reverse_payment($1, 2, 'Test reason')`, [a.id]),
       "ALREADY_DECIDED",
     );
     const c = await addPayment(b);
@@ -528,17 +528,18 @@ describe("approving payments", () => {
     );
     expect(au[0].reason).toBe("Typed wrong amount");
     await expectDbError(
-      call(`select public.update_waiting_payment($1, 1, '{}'::jsonb, 'x')`, [
-        a.id,
-      ]),
+      call(
+        `select public.update_waiting_payment($1, 1, '{}'::jsonb, 'Test reason')`,
+        [a.id],
+      ),
       "STALE_RECORD",
     );
     await approvePay(a.id, 2);
     await expectDbError(
-      call(`select public.update_waiting_payment($1, 3, $2::jsonb, 'x')`, [
-        a.id,
-        j({ amount_paise: 1 }),
-      ]),
+      call(
+        `select public.update_waiting_payment($1, 3, $2::jsonb, 'Test reason')`,
+        [a.id, j({ amount_paise: 1 })],
+      ),
       "ALREADY_DECIDED",
     );
   });
@@ -589,10 +590,12 @@ describe("refunds", () => {
     expect((await addRefund(over, { amount_paise: 100000 })).warnings).toEqual(
       [],
     );
-    const bigger = await addRefund(over, { amount_paise: 50000 });
-    expect(bigger.warnings.map((x: Json) => x.code)).toEqual([
-      "ABOVE_REFUND_DUE",
-    ]); // refund due 100000, 100000 already waiting
+    // Owner decision 2026-11-11: on a running booking the genuine overpayment (100000) is a HARD limit,
+    // and the 100000 already waiting uses it all up. (Details: tests/db/owner-decisions.test.ts.)
+    await expectDbError(
+      addRefund(over, { amount_paise: 50000 }),
+      "REFUND_TOO_LARGE",
+    );
   });
 
   it("PAF-33: a refund needs a reason; UPI/card/cheque refunds need proof in the refunds folder (D3)", async () => {
@@ -698,16 +701,16 @@ describe("refunds", () => {
     await approvePay(p.id);
     const r = await addRefund(over, { amount_paise: 50000 });
     await expectDbError(
-      call(`select public.update_waiting_refund($1, 1, $2::jsonb, 'fix')`, [
-        r.id,
-        j({ amount_paise: 700000 }),
-      ]),
+      call(
+        `select public.update_waiting_refund($1, 1, $2::jsonb, 'Fix amount')`,
+        [r.id, j({ amount_paise: 700000 })],
+      ),
       "REFUND_TOO_LARGE",
     );
-    await call(`select public.update_waiting_refund($1, 1, $2::jsonb, 'fix')`, [
-      r.id,
-      j({ amount_paise: 90000 }),
-    ]);
+    await call(
+      `select public.update_waiting_refund($1, 1, $2::jsonb, 'Fix amount')`,
+      [r.id, j({ amount_paise: 90000 })],
+    );
     expect((await refund(r.id)).amount_paise).toBe(90000);
   });
 });
@@ -778,11 +781,11 @@ describe("proof files", () => {
       "PROOF_LOCKED",
     );
     await expectDbError(
-      call(`select public.hide_proof($1, 'x')`, [pr.id]),
+      call(`select public.hide_proof($1, 'Test reason')`, [pr.id]),
       "PROOF_LOCKED",
     );
     const rej = await addPayment(b, {});
-    await call(`select public.reject_payment($1, 1, 'No')`, [rej.id]);
+    await call(`select public.reject_payment($1, 1, 'Not valid')`, [rej.id]);
     await expectDbError(
       call(`select public.add_proofs('payment', $1, $2::jsonb)`, [
         rej.id,
@@ -870,7 +873,7 @@ describe("proof files", () => {
   it("PAF-43: corrections are refused on rejected and reversed items; allowed on approved refunds (Q9a)", async () => {
     const b = await newBooking();
     const rej = await addPayment(b);
-    await call(`select public.reject_payment($1, 1, 'No')`, [rej.id]);
+    await call(`select public.reject_payment($1, 1, 'Not valid')`, [rej.id]);
     const rev = await addPayment(b);
     await approvePay(rev.id);
     await call(`select public.reverse_payment($1, 2, 'Bounced')`, [rev.id]);

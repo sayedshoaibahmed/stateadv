@@ -118,6 +118,45 @@ async function heldBooking(held: number): Promise<{ b: string; pay: string }> {
   return { b, pay: pay[0].r.id as string };
 }
 
+/** A booking with amount due D=500000 and A=600000 approved. state 'active' keeps it running; 'cancelled' cancels it with charge D. */
+async function overpaidBooking(state: "active" | "cancelled"): Promise<string> {
+  const b = await newBooking(500000);
+  const d = await dateOffset(w.db, 0);
+  const pay = await asManager(() =>
+    w.db.q<{ r: Json }>(
+      `select public.add_payment($1::jsonb, null, $2::uuid) as r`,
+      [
+        j({
+          booking_id: b,
+          amount_paise: 600000,
+          method: "cash",
+          payment_date: d,
+        }),
+        uid(),
+      ],
+    ),
+  );
+  await w.db.as({ role: "authenticated", uid: w.owner }, () =>
+    w.db.q(`select public.approve_payment($1, 1)`, [pay[0].r.id]),
+  );
+  if (state === "cancelled") {
+    const plan = [
+      {
+        label: "Cancellation charge",
+        due_date: await dateOffset(w.db, 1),
+        amount_paise: 500000,
+      },
+    ];
+    await asManager(() =>
+      w.db.q(
+        `select public.cancel_booking($1, 1, 'cancelled', null, 500000, 'Guest cancelled', null, $2::jsonb)`,
+        [b, j(plan)],
+      ),
+    );
+  }
+  return b;
+}
+
 describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
   it("CON-01 (BID-02/03): 20 bookings saved at the same moment get 20 different, gap-free numbers", async () => {
     const payloads = await Promise.all(
@@ -437,5 +476,93 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
         ])
       ).length,
     ).toBe(1);
+  });
+  it("CON-12 (decision 5): on a RUNNING booking 10 simultaneous refunds can never go above A - D - RA - RW", async () => {
+    const b = await overpaidBooking("active"); // A=600000, D=500000: room 100000
+    const d = await dateOffset(w.db, 0);
+    const res = await parallel(Array(10).fill(w.manager), (c) =>
+      c.query(`select public.add_refund($1::jsonb, null, $2::uuid) as r`, [
+        j({
+          booking_id: b,
+          amount_paise: 30000,
+          method: "cash",
+          refund_date: d,
+          reason: "Guest overpaid",
+        }),
+        uid(),
+      ]),
+    );
+    expect(res.filter((r) => r.ok)).toHaveLength(3); // 90000 fits, a fourth would make 120000 > 100000
+    for (const r of res)
+      if (!r.ok) expect(r.error).toContain("REFUND_TOO_LARGE");
+    const sum = await w.db.q<{ s: number }>(
+      `select coalesce(sum(amount_paise), 0)::bigint s from public.refunds where booking_id = $1 and status in ('waiting','approved')`,
+      [b],
+    );
+    expect(sum[0].s).toBeLessThanOrEqual(100000);
+  });
+
+  it("CON-13 (decision 5): same numbers, different states: simultaneous 70000 refunds → 1 succeeds when running (room 100000), 8 when cancelled (room 600000)", async () => {
+    const d = await dateOffset(w.db, 0);
+    const run = async (b: string) =>
+      parallel(Array(12).fill(w.manager), (c) =>
+        c.query(`select public.add_refund($1::jsonb, null, $2::uuid) as r`, [
+          j({
+            booking_id: b,
+            amount_paise: 70000,
+            method: "cash",
+            refund_date: d,
+            reason: "Guest overpaid",
+          }),
+          uid(),
+        ]),
+      );
+    const running = await run(await overpaidBooking("active"));
+    expect(running.filter((r) => r.ok)).toHaveLength(1);
+    const cancelled = await run(await overpaidBooking("cancelled"));
+    expect(cancelled.filter((r) => r.ok)).toHaveLength(8); // 8 x 70000 = 560000 <= 600000 < 9 x 70000
+    for (const r of [...running, ...cancelled])
+      if (!r.ok) expect(r.error).toContain("REFUND_TOO_LARGE");
+  });
+
+  it("CON-14 (decision 5): two waiting refunds both raised at the same moment can never together go above the room", async () => {
+    for (const state of ["active", "cancelled"] as const) {
+      const b = await overpaidBooking(state);
+      const room = state === "active" ? 100000 : 600000;
+      const d = await dateOffset(w.db, 0);
+      const mk = () =>
+        asManager(() =>
+          w.db.q<{ r: Json }>(
+            `select public.add_refund($1::jsonb, null, $2::uuid) as r`,
+            [
+              j({
+                booking_id: b,
+                amount_paise: 10000,
+                method: "cash",
+                refund_date: d,
+                reason: "Guest overpaid",
+              }),
+              uid(),
+            ],
+          ),
+        ).then((x) => x[0].r.id as string);
+      const [r1, r2] = [await mk(), await mk()];
+      const target = Math.floor(room * 0.8); // each alone fits; together they cannot
+      const res = await parallel([w.manager, w.manager2], (c, i) =>
+        c.query(
+          `select public.update_waiting_refund($1, 1, $2::jsonb, 'Corrected the amount')`,
+          [i === 0 ? r1 : r2, j({ amount_paise: target })],
+        ),
+      );
+      expect(
+        res.filter((r) => r.ok),
+        state,
+      ).toHaveLength(1);
+      const sum = await w.db.q<{ s: number }>(
+        `select sum(amount_paise)::bigint s from public.refunds where booking_id = $1 and status = 'waiting'`,
+        [b],
+      );
+      expect(sum[0].s).toBeLessThanOrEqual(room);
+    }
   });
 });

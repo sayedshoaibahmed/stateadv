@@ -15,6 +15,7 @@ import { expectDbError } from "./harness";
 import {
   addPayment,
   addRefund,
+  cancelBooking,
   createBooking,
   setStatus,
   setupWorld,
@@ -576,6 +577,7 @@ describe("Q9a - correction files for approved payments and refunds", () => {
 
   it("COR-05: the same rules apply to refunds - approved only, reason mandatory, no figure changes", async () => {
     const { b } = await approvedPayment("cash");
+    await cancelBooking(w, b, { charge: 0 }); // approved money is held, so it can be refunded
     const rid = await addRefund(w, b, { amount: 50000 });
     await expectDbError(
       addCorrection({ refundId: rid, bookingId: b.id }),
@@ -683,6 +685,7 @@ describe("D5 stays in force (reversal protection) - spot check next to the new r
     const b = await createBooking(w);
     const pid = await addPayment(w, b, { amount: 400000 });
     await setStatus(w, "payments", pid, "approved", w.owner);
+    await cancelBooking(w, b, { charge: 0 });
     const rid = await addRefund(w, b, { amount: 300000 });
     await expectDbError(
       setStatus(w, "payments", pid, "reversed", w.owner, "Entered by mistake"),
@@ -708,6 +711,7 @@ describe("D5 stays in force (reversal protection) - spot check next to the new r
     const b = await createBooking(w);
     const pid = await addPayment(w, b, { amount: 400000 });
     await setStatus(w, "payments", pid, "approved", w.owner);
+    await cancelBooking(w, b, { charge: 0 });
     const rid = await addRefund(w, b, { amount: 300000 });
     await setStatus(w, "refunds", rid, "approved", w.owner);
     await expectDbError(

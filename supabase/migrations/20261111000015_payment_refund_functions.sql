@@ -268,7 +268,7 @@ begin
   if cur.version <> p_expected_version then
     raise exception 'STALE_RECORD' using detail = 'Someone else changed this payment. Please reload.';
   end if;
-  v_reason := public.require_reason(p_reason, 1);
+  v_reason := public.require_reason(p_reason, 5);
   perform set_config('app.reason', v_reason, true);
 
   begin
@@ -324,7 +324,7 @@ begin
     raise exception 'STALE_RECORD' using detail = 'Someone else changed this payment. Please reload.';
   end if;
   if p_to in ('rejected', 'reversed') then
-    p_reason := public.require_reason(p_reason, 1);
+    p_reason := public.require_reason(p_reason, 5);
   end if;
   perform set_config('app.reason', coalesce(p_reason, ''), true);
 
@@ -399,8 +399,8 @@ begin
   if v_date is null then
     raise exception 'INVALID_INPUT' using detail = 'Please enter the refund date.';
   end if;
-  if v_reason is null then
-    raise exception 'REASON_REQUIRED' using detail = 'Please write the reason for the refund.';
+  if v_reason is null or length(v_reason) < 5 then
+    raise exception 'REASON_REQUIRED' using detail = 'Please write the reason for the refund (at least 5 characters).';
   end if;
   perform public.check_provider(v_method, v_prov, v_other);
   if v_method in ('upi', 'card', 'cheque') and coalesce(jsonb_array_length(case when jsonb_typeof(p_files) = 'array' then p_files end), 0) = 0 then
@@ -464,7 +464,7 @@ begin
   if cur.version <> p_expected_version then
     raise exception 'STALE_RECORD' using detail = 'Someone else changed this refund. Please reload.';
   end if;
-  v_reason := public.require_reason(p_reason, 1);
+  v_reason := public.require_reason(p_reason, 5);
   perform set_config('app.reason', v_reason, true);
   begin
     v_method := coalesce(public.pl_text(p_payload, 'method')::public.payment_method, cur.method);
@@ -515,7 +515,7 @@ begin
     raise exception 'STALE_RECORD' using detail = 'Someone else changed this refund. Please reload.';
   end if;
   if p_to in ('rejected', 'reversed') then
-    p_reason := public.require_reason(p_reason, 1);
+    p_reason := public.require_reason(p_reason, 5);
   end if;
   perform set_config('app.reason', coalesce(p_reason, ''), true);
   update public.refunds set
@@ -596,7 +596,7 @@ create function public.hide_proof(p_id uuid, p_reason text)
 returns void
 language plpgsql security definer set search_path = ''
 as $$
-declare f public.proofs; v_booking uuid; v_reason text := public.require_reason(p_reason, 1);
+declare f public.proofs; v_booking uuid; v_reason text := public.require_reason(p_reason, 5);
 begin
   perform public.require_active_user();
   select * into f from public.proofs where id = p_id;
