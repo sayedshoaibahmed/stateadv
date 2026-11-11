@@ -250,6 +250,7 @@ create index co_entries_name_trgm_idx on public.co_entries using gin (lower(name
 
 alter table public.bookings rename column agent_partner_id to co_entry_id;
 alter index public.bookings_agent_partner_idx rename to bookings_co_entry_idx;
+alter table public.bookings rename constraint bookings_agent_partner_id_fkey to bookings_co_entry_id_fkey;
 
 -- DESTRUCTIVE-APPROVED: replaced by the new bookings_co_rules below (same idea, now driven by co_mode)
 alter table public.bookings drop constraint bookings_co_rules;

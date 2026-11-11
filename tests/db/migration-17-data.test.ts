@@ -214,7 +214,14 @@ describe("MIG17: migration 17 converts existing data without loss", () => {
         )
       ).length,
     ).toBe(0);
-    // leftover names that still carry the old table name
+    // leftover names that still carry the old table name, anywhere in the schema (constraints and indexes of ANY
+    // table), not only on the renamed one
+    expect(
+      await db.q(
+        `select conname name from pg_constraint where connamespace = 'public'::regnamespace and (conname ~ 'agent|partner')
+         union all select indexname from pg_indexes where schemaname = 'public' and indexname ~ 'agent|partner'`,
+      ),
+    ).toEqual([]);
     expect(
       (
         await db.q(

@@ -378,25 +378,46 @@ for (const m of SELECTED) {
       m.all ? text.split(m.from).join(m.to) : text.replace(m.from, () => m.to),
     );
 
-    const r = spawnSync("npx", ["vitest", "run", "tests/db"], {
-      env: { ...process.env, STATEADV_MIGRATIONS_DIR: dir },
-      encoding: "utf8",
-      shell: true,
-    });
-    const out = `${r.stdout}\n${r.stderr}`.replace(ANSI, "");
-
-    if (/Migration .* failed/.test(out)) {
+    // A run can end without a verdict: the test process itself can die (seen on Windows as a worker crash). That is
+    // INCONCLUSIVE, not "survived": it is repeated, and only a run in which every test PASSED counts as a survivor.
+    let out = "";
+    let status = 0;
+    let verdict = "inconclusive";
+    let failed = 0;
+    for (
+      let attempt = 1;
+      attempt <= 3 && verdict === "inconclusive";
+      attempt++
+    ) {
+      const r = spawnSync("npx", ["vitest", "run", "tests/db"], {
+        env: { ...process.env, STATEADV_MIGRATIONS_DIR: dir },
+        encoding: "utf8",
+        shell: true,
+      });
+      out = `${r.stdout}\n${r.stderr}`.replace(ANSI, "");
+      status = r.status ?? 1;
+      failed = Number((out.match(/Tests\s+(\d+) failed/) ?? [])[1] ?? 0);
+      const crashed =
+        /Worker exited unexpectedly|exited unexpectedly|Worker forks emitted error/.test(
+          out,
+        );
+      if (/Migration .* failed/.test(out)) verdict = "invalid";
+      else if (failed > 0 && status !== 0 && !crashed) verdict = "caught";
+      else if (failed > 0 && status !== 0)
+        verdict = "caught"; // real failing assertions were counted even though a worker also died
+      else if (status === 0) verdict = "survived";
+      else verdict = "inconclusive"; // non-zero exit, no failing assertion counted: the test process died
+    }
+    if (verdict === "invalid") {
       problems++;
       console.log(
         `INVALID   ${m.name}  (the weakened SQL did not even run - fix the mutation)`,
       );
       continue;
     }
-    const failed = Number((out.match(/Tests\s+(\d+) failed/) ?? [])[1] ?? 0);
-    const caught = r.status !== 0 && failed > 0;
-    if (!caught) problems++;
+    if (verdict !== "caught") problems++;
     console.log(
-      `${caught ? "CAUGHT  " : "SURVIVED"}  ${m.name}  (${failed} test(s) failed)`,
+      `${verdict === "caught" ? "CAUGHT  " : verdict === "survived" ? "SURVIVED" : "INCONCLUSIVE"}  ${m.name}  (${failed} test(s) failed)`,
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -405,6 +426,6 @@ for (const m of SELECTED) {
 console.log(
   problems === 0
     ? `\nAll ${SELECTED.length} weakened versions were caught by the tests${SELECTED.length < MUTATIONS.length ? ` (a selection; ${MUTATIONS.length} exist)` : ""}.`
-    : `\n${problems} problem(s): a weakened version survived, or a mutation was invalid.`,
+    : `\n${problems} problem(s): a weakened version survived, was inconclusive after 3 tries, or a mutation was invalid.`,
 );
 process.exit(problems === 0 ? 0 : 1);

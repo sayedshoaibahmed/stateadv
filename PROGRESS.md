@@ -9,13 +9,19 @@ Last updated: 2026-11-11
 | Level | State |
 |---|---|
 | **Hosted dev project** (PostgreSQL 17.11) | Migrations **01–10 applied** and verified read-only. Migrations **11–18 are NOT applied** (dry run lists exactly those eight). No Owner account. Signup disabled. Tables that migration 17 changes are **empty** on hosted (0 bookings, 0 C/O names). |
-| **GitHub** | `origin/main` is at `92ecd3d`. **Nothing newer has been pushed**, so the PostgreSQL 17 CI job has never run on GitHub. |
-| **Local, real PostgreSQL 17.11** (throw-away server) | **368** tests pass (database, data-conversion and 18 simultaneous-request tests). |
-| **Local, PGlite** | **503** tests pass (18 concurrency tests skipped there). Mutation check: **53 of 53** weakened versions caught. |
+| **GitHub** | `origin/main` = `8be574e`; CI for it passed (lint/typecheck/test/build, secret scan, PostgreSQL 17 database tests; reported by the owner). The newer local changes (migration 17 constraint rename, generated types, hosted-rehearsal CI job, preflight script, docs) are **uncommitted and not pushed**, so the new `database-postgres-17-restricted` job has never run on GitHub. |
+| **Local, real PostgreSQL 17.11** (throw-away server) | **355** database tests + **18** simultaneous-request tests pass, in each of two modes: superuser, and the hosted rehearsal (migrations run as a plain role named `postgres`). |
+| **Local, PGlite** | **508** tests pass (18 concurrency tests skipped there). |
+| **Mutation checks** | Exhaustive suite (53 weakened versions) is **deferred to M9** by owner decision (see below). Essential targeted M2 checks run 2026-11-11: 15 security/financial weakenings **all caught**; the runner now treats a crashed test process as INCONCLUSIVE (retried 3 times) and never as caught. |
+| **Hosted preflight** (`npm run preflight:hosted`, read-only) | P1-P7 PASS; P8 FAILS because the working tree has uncommitted changes (correct behaviour). |
+| **Generated types** | `src/lib/supabase/database.types.ts` regenerated from the migrations on a throw-away PostgreSQL: byte-identical to the file in the tree. |
 | Lint, types, format, production build, bundle scan, migration check (now also ASCII-only) | pass |
 | `npm audit --omit=dev` | 0 findings (3 dev-only advisories in the `shadcn` command-line tool, not shipped) |
 
 **Known issue (open):** on this Windows machine the many-connection test file sometimes loses its Node worker process (about 1 run in 10; no failing assertion ever; see MIGRATION_REVIEW 14.6).
+
+### Mutation testing schedule (owner decision 2026-11-11)
+M2: essential targeted security and financial-rule checks only. M3, M4, M6, M7, M8: ordinary tests only. M5: targeted financial mutation checks. **M9: full mutation testing across M2-M8.** `scripts/mutation-check.mjs` and its 53 mutations are kept unchanged for M9 (`MUTATION_ONLY="name part,name part"` selects a subset). Do not run the full suite earlier unless a critical issue requires it.
 
 ### Done in this stage (owner requirement 2026-11-11: configurable master data)
 - **C/O categories and names**, **resorts** and **stay types** are configured by Managers and Owners themselves: any number, any name, rename, switch on/off, type-to-search. Four **placeholder resorts** start the system. Bookings keep their own copy of the names, so renaming or switching off never rewrites history; old bookings with switched-off choices stay readable and editable; new choices must be switched on.

@@ -85,5 +85,16 @@ tests/
 
 - `npm test` — everything quick (database tests run on PGlite, an in-memory PostgreSQL).
 - `npm run test:pg17` — the same database tests plus the concurrency tests on a **real PostgreSQL 17**. Set `STATEADV_PG_URL` to a throw-away server (CI uses a `postgres:17` container). The harness refuses any Supabase address.
-- `npm run check:mutations` — weakens the migrations one rule at a time and checks the tests notice.
+- `npm run check:mutations` — weakens the migrations one rule at a time and checks the tests notice. The full suite is slow and is scheduled for milestone M9; use `MUTATION_ONLY="part of name,another" npm run check:mutations` for a targeted run. A run whose test process crashes is reported INCONCLUSIVE (retried), never as caught.
 - Status of every M2 requirement: `M2_STATUS.md`. Checks on the real Supabase project: `supabase/HOSTED_VERIFICATION.md`.
+
+## Regenerating the database types
+
+`src/lib/supabase/database.types.ts` is generated, never edited by hand, and a test (`tests/db/types-in-sync.test.ts`) fails if it disagrees with the migrations. After you add or change a migration:
+
+1. Start a **throw-away** local PostgreSQL 17 (never a Supabase address) and set `STATEADV_PG_URL` to it.
+2. `STATEADV_PG_RESTRICTED=1 npm run gen:types`, then `npm run format`.
+
+## Rehearsing the hosted situation (non-superuser migrations)
+
+On Supabase the migrations run as the role `postgres`, which is **not** a superuser. To test that, use a throw-away server whose superuser has another name (for example `bootstrap`, as the CI job `database-postgres-17-restricted` does) and set `STATEADV_PG_RESTRICTED=1`: the harness then runs every migration as a plain role named `postgres` that owns what it creates. If a migration quietly needed superuser rights, it fails there.

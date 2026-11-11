@@ -231,3 +231,10 @@ Never in browser code (the bundle scan checks), never for ordinary reads or writ
 - Integrity does not depend on the screens or the functions: `guard_booking` and a composite foreign key enforce the rules, and tests write to the table directly to prove it (CFG-CO-10, CFG-CO-12).
 - A resort logo is accepted only from the resort's own folder in the private bucket and only after the server has checked its real content.
 - Migration 17 uses DROP COLUMN / DROP TYPE after converting the data; see MIGRATION_REVIEW 14.2.
+
+## 14. Review before the hosted apply (2026-11-11)
+- **Privilege rehearsal.** The database tests now also run on PostgreSQL 17.11 with the migrations executed as a plain (non-superuser) role named `postgres`, like Supabase's. All pass. No migration needs superuser rights.
+- **Typed clients.** The three Supabase clients are typed from generated types; the compiler found ten places that passed `null` for "not given" and they were corrected (omitting a defaulted argument is the same in the database). A test keeps the types file in step with the migrations.
+- **Migration 17** drops two enum types and two columns after converting data; hosted preconditions are checked read-only (MIGRATION_REVIEW 15) and re-checked by the preflight before any apply.
+- **Open items that need the dashboard (not the API):** Secure email change must be ON; session lifetime / refresh-token rotation must be as in section 2. Until you confirm them, FR-AUTH-2 and FR-AUTH-16 are **not verified**.
+- **Still open from before:** the dev Secret Key shared in a chat must be replaced before the first Owner and before production (not done; needs your action); the occasional local-only test-worker crash (MIGRATION_REVIEW 14.6).

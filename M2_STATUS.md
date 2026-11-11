@@ -13,12 +13,12 @@ M2 is **one milestone**. This is a working audit, generated from the data in the
 
 | Measure | Result |
 |---|---|
-| M2 requirements in scope | **62** (plus 3 that belong to later milestones) |
-| Fully complete (verified at every level possible without your approval) | **3** |
-| Built and tested locally / on real PostgreSQL 17, **not yet verified on the hosted project** | **56** |
-| Not done | **3** |
-| **Built and locally verified** | **95%** |
-| **Fully verified (counting hosted checks)** | **5%** |
+| M2 requirements in scope | **66** (plus 3 that belong to later milestones) |
+| Fully complete (verified at every level possible without your approval) | **4** |
+| Built and tested locally / on real PostgreSQL 17, **not yet verified on the hosted project** | **58** |
+| Not done | **4** |
+| **Built and locally verified** | **94%** |
+| **Fully verified (counting hosted checks)** | **6%** |
 
 **M2 is NOT complete.** The remaining steps are outside what I may do alone: apply migrations 11–18 (needs your approval), rotate the secret key and create the real Owner (separate approval), push (approval), and the checks that need real accounts, mailboxes or a Storage login.
 
@@ -109,6 +109,7 @@ Status key: ✅ complete · 🟡 built and tested locally, hosted verification p
 | G7 | Authorization: Manager AND Owner may configure; signed-out, no-profile, switched-off users and anonymous refused; no direct table write; nothing deleted | functions (13), RLS (17) | CFG-CO-11, CFG-RES-07, CFG-STAY-04; SEC-04 | Hosted check with real accounts | 🟡 |
 | G8 | Existing data survives the conversion (bookings, entries, money, plans) | migration 17 | MIG17-01..07 (PGlite + PG17); hosted tables are empty (read-only check) | Apply to hosted (contains DROP COLUMN/TYPE: owner approval) | 🟡 |
 | G9 | Settings screens (resorts, C/O, stay types) and the shared type-to-search picker | src/app/(app)/settings, src/components/app | built, type-checked, linted, production build; rules unit-tested | Not exercised in a browser; booking forms that use the picker are M4 | 🟡 |
+| G11 | Generated TypeScript types for the database, used by all three Supabase clients, kept in step with the migrations by a test and a reproducible generator | src/lib/supabase/database.types.ts; scripts/gen-types.mts | TYP-01..05; typecheck; generator output identical to the committed file | Commit and CI (not yet committed) | 🟡 |
 | G10 | Booking forms that use the lists | - | - | Booking screens belong to M4 | ➡️ |
 
 ## F. Real-environment verification (TEST_PLAN §2.13b)
@@ -116,7 +117,7 @@ Status key: ✅ complete · 🟡 built and tested locally, hosted verification p
 | # | Requirement | Where | Tests | Missing | Status |
 |---|---|---|---|---|---|
 | RSV-01/02 | Dry run and apply (migrations 01–10) | hosted | done on 2026-11-11 | Migrations 11–18: dry run done today (lists exactly those eight); apply awaits your approval | ✅ |
-| RSV-03 | Whole database suite on PostgreSQL 17 | tests/db with STATEADV_PG_URL; CI job defined | 368 tests pass on a local throw-away PostgreSQL 17.11 (same version as Supabase) | The GitHub Actions job has not run yet (needs a push) | 🟡 |
+| RSV-03 | Whole database suite on PostgreSQL 17 | tests/db with STATEADV_PG_URL; CI job defined | 355 tests pass in each of two local throw-away PostgreSQL 17.11 configurations (superuser, and migrations run as a plain role named postgres like the hosted one); the GitHub job passed for commit 8be574e (owner report) | The GitHub Actions job has not run yet (needs a push) | 🟡 |
 | RSV-04 | Concurrency tests | tests/db/concurrency.pg.test.ts | 18 tests pass on real PostgreSQL 17.11; removing the locks makes them fail (checked) | GitHub Actions run pending | 🟡 |
 | RSV-05 | Privilege queries on hosted | hosted | done for 01–10 | Re-run after migrations 11–18 are applied | 🟡 |
 | RSV-06 | Anonymous REST probes; a login without a profile sees 0 rows | hosted | anonymous half done (HTTP 401) | The 'login without a profile' half needs a throw-away user | 🟡 |
@@ -125,6 +126,9 @@ Status key: ✅ complete · 🟡 built and tested locally, hosted verification p
 | RSV-09 | Supabase advisors | hosted | done for 01–10 (no errors/warnings) | Re-run after 11–18 | 🟡 |
 | RSV-10 | Exposed API surface | hosted | done for 01–10 | Re-run after 11–18 (SEC-04 lists the 38 allowed functions locally) | 🟡 |
 | RSV-11 | IST midnight boundaries | — | IST rules covered by unit tests and BKF-04; today_ist() read on hosted | A true midnight test needs a clock we can set (not built) | ❌ |
+| RSV-12 | Hosted preconditions for migrations 11-18 (read-only): history, structure, exact row counts, dependants of what migration 17 drops, name collisions, privileges, storage, Auth settings | hosted | done 2026-11-11: history 10; every table that 17 changes holds 0 rows; only guard_booking depends on the dropped objects; no collisions | Re-run as the preflight just before any apply | ✅ |
+| RSV-13 | Migrations 01-18 run as a NON-superuser role named postgres (hosted-role rehearsal) | tests/db with STATEADV_PG_RESTRICTED=1; CI job database-postgres-17-restricted | 355 + 18 tests pass on real PostgreSQL 17.11 | The new CI job has not run on GitHub yet; Supabase's own extensions, PostgREST, Auth, Storage are not part of it | 🟡 |
+| RSV-14 | Dashboard-only settings: Secure email change ON, session lifetime / refresh-token rotation (FR-AUTH-2, FR-AUTH-16) | hosted dashboard | - | Only the project owner can look: not readable through the public API | ❌ |
 
 ## What I need from you (nothing below has been done)
 

@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 import { getPublicEnv } from "@/lib/env";
 import { getServerEnv } from "@/lib/env.server";
 
@@ -17,7 +18,7 @@ export function createAdminClient() {
   if (!SUPABASE_SECRET_KEY) {
     throw new Error("SUPABASE_SECRET_KEY is not configured (server only).");
   }
-  return createClient(NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, {
+  return createClient<Database>(NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

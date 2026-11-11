@@ -145,8 +145,8 @@ export async function addUser(
     p_full_name: full_name,
     p_email: email,
     p_role: role,
-    p_phone: phone ?? null,
-    p_reason: g.reason ?? null,
+    p_phone: phone,
+    p_reason: g.reason,
   });
   if (error) {
     await admin.auth.admin.deleteUser(created.data.user.id);
@@ -178,8 +178,6 @@ export async function editUser(
     p_id: id.data,
     p_full_name: parsed.data.full_name,
     p_phone: parsed.data.phone ?? "",
-    p_role: null,
-    p_reason: null,
   });
   return error ? fail(friendlyError(error)) : { ok: true, message: "Saved." };
 }
@@ -208,8 +206,6 @@ export async function changeRole(
   const supabase = await createClient();
   const { error } = await supabase.rpc("profile_update", {
     p_id: id.data,
-    p_full_name: null,
-    p_phone: null,
     p_role: parsed.data.role,
     p_reason: reason,
   });
@@ -246,7 +242,7 @@ export async function setUserActive(
   const { error } = await supabase.rpc("profile_set_active", {
     p_id: id.data,
     p_active: sw.data.active,
-    p_reason: g.reason ?? null,
+    p_reason: g.reason,
   });
   if (error) return fail(friendlyError(error));
   // 2. Supabase Auth: stop (or allow) sign-in. If this fails, undo step 1 so both sides agree.
@@ -293,7 +289,7 @@ export async function resetUserPassword(
   const supabase = await createClient();
   const { error } = await supabase.rpc("profile_reset_password", {
     p_target: id.data,
-    p_reason: g.reason ?? null,
+    p_reason: g.reason,
   });
   if (error) return fail(friendlyError(error));
   const tempPassword = generateTempPassword();

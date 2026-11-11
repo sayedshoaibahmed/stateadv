@@ -7,14 +7,40 @@ Rules for every check
 - Test accounts use addresses you control (`you+owner-test@…`). Delete nothing: switch test people off instead; the system never deletes records.
 - Do not mark a check as passed unless its "pass" line was actually observed.
 
-## 0. Before anything: apply migrations 11–18 (needs your approval)
-| Step | Pass |
-|---|---|
-| `supabase migration list` and `db push --dry-run --skip-vault` | lists exactly migrations 11–18 (eight files) |
-| `db push --skip-vault --yes` (after approval) | eight "Applying migration…" lines, exit 0 |
-| Read-only: function count | 85 functions in `public`; 38 callable by signed-in users (the list in test SEC-04); only `recover_owner_account` is service-role only; none callable by `anon` |
-| Read-only: `db advisors` | no errors or warnings (INFO notes reviewed) |
-| Read-only: anonymous REST probe of one new function | HTTP 401/permission denied |
+## 0. Applying migrations 11-18 (needs your explicit approval; NOT done)
+
+Commit and push the current local changes first and wait for GitHub Actions to be green, so that the files applied are the files on GitHub.
+
+### 0a. Preflight (read-only; every line must hold, otherwise STOP and report)
+| # | Check | Required |
+|---|---|---|
+| P1 | `select count(*) from supabase_migrations.schema_migrations` and max version | 10 and `20261111000010` |
+| P2 | exact counts: `bookings`, `agents_partners`, `booking_sequences`, `guests`, `resorts`, `payments`, `refunds`, `proofs`, `payment_schedules`, `expected_adjustments`, `user_profiles`, `auth.users`, `storage.objects` | all **0** |
+| P3 | `stay_types` 3, `payment_providers` 9 | as stated |
+| P4 | objects to be dropped exist exactly once: types `co_category`, `partner_type`; columns `bookings.co_category`, `bookings.agent_partner_id`, `agents_partners.type` | present |
+| P5 | nothing else depends on them (functions / views / policies mentioning `co_category`, `agent_partner`, `agents_partners`) | only `guard_booking` |
+| P6 | none of the 60 new function names, `co_categories`, `co_entries` exists | none |
+| P7 | `db push --dry-run --skip-vault` | lists exactly the expected files |
+| P8 | local working tree equals GitHub `main`, CI green | yes |
+
+### 0b. Checks only you can do (dashboard)
+The public API cannot show these. Please look and tell me:
+1. **Secure email change is ON** (Authentication -> Providers/Sign-in -> Email). Required by FR-AUTH-16.
+2. **Session lifetime**: JWT expiry 3600 s and refresh-token rotation ON (Project Settings / Authentication -> Sessions). Required by FR-AUTH-2 / SECURITY section 2.
+3. Which Supabase plan the project is on (whether daily backups / point-in-time recovery exist).
+(Menu names differ between dashboard versions.)
+
+### 0c. Proposed execution (staged)
+| Step | Action | Stop and report if |
+|---|---|---|
+| 1 | Preflight 0a | any line fails |
+| 2 | **Stage A** - additive 11-16: `db push --skip-vault --yes --workdir <scratch copy of the migrations folder containing only 01-16>` | any error |
+| 3 | Verify stage A (read-only): history 16 rows; functions **85**; callable by signed-in users **38**, by anonymous **0**; tables 19, policies 18 + 6; `recover_owner_account` executable by `service_role` only; anonymous probe of one new function returns 401 | any difference |
+| 4 | **Stage B** - destructive 17-18: `db push --skip-vault --yes` from the repository | any error |
+| 5 | Verify the final state against the table in MIGRATION_REVIEW 15.5 (history 18; tables 20, enums 8, triggers 102, policies 19 + 6; `co_categories` 4 rows; resorts 4; types and old columns gone; RLS everywhere) | any difference |
+| 6 | `db advisors`; anonymous REST probes of the new table and one new function (expect denial) | any error or warning that is new |
+| 7 | **Stop.** Report. Do not create the Owner, do not start M3. | |
+Nothing in this sequence creates an account, changes a credential or deploys.
 
 ## 1. First Owner (needs approval + replaced Secret Key) — status: not run
 1. `npx tsx scripts/create-first-user.ts --dry-run` → "Dry run: nothing was created."

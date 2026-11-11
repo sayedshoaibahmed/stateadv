@@ -265,8 +265,8 @@ export async function confirmLogoUpload(
     p_id: resortId,
     p_code: r.code,
     p_name: r.name,
-    p_location: r.location,
-    p_contact_number: r.contact_number,
+    p_location: r.location ?? undefined,
+    p_contact_number: r.contact_number ?? undefined,
     p_logo_path: path,
   });
   return saveError

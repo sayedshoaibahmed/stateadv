@@ -369,3 +369,87 @@ A database is built up to migration 16, filled with four bookings (one per old c
 
 ### 14.6 Known test-environment issue (open, not a database defect)
 On the Windows development machine the file `tests/db/concurrency.pg.test.ts` (dozens of simultaneous connections) occasionally ends because its Node worker process dies with exit code `0xC0000409` (a process-level fatal, no assertion output, no crash in the PostgreSQL server log). Measured: about 1 run in 4 at first; after giving every connection an error listener, closing connections one at a time, and removing queries that overlapped on one shared connection, about 1 run in 10. A stand-alone script that opens 30 connections at once, 60 times in a row, six times over, never crashes, so it is not the PostgreSQL driver or the server. **Every run that completed passed all 18 tests; no run ever produced a failing assertion.** `npm run test:pg17` and the CI job run this file separately from the other files. Not yet seen on Linux (CI has not run). If it recurs in CI it should be investigated rather than re-run blindly.
+
+## 15. Pre-apply review of migrations 11-18 (2026-11-11, before any hosted change)
+
+Everything below was checked **read-only** against the hosted project (PostgreSQL 17.11) and rehearsed locally. **Nothing has been applied.**
+
+### 15.1 Hosted facts (evidence, exact counts - not estimates)
+| Fact | Finding |
+|---|---|
+| Migration history | exactly 10 rows, `20261111000001` .. `20261111000010`, names identical to the local files; local files 01-10 are byte-identical to what is on GitHub |
+| Tables / views / enums / functions / triggers / policies | 19 / 3 / 10 / 25 / 97 (+1 on `auth.users`) / 24 |
+| RLS | enabled on all 19 tables; no table without it |
+| **Rows in the tables migration 17 changes** | `bookings` **0**, `agents_partners` **0**, `booking_sequences` 0, `guests` 0, `resorts` 0, `payments` / `refunds` / `proofs` / plans / adjustments **0**, `user_profiles` 0, `auth.users` 0, `storage.objects` 0 |
+| Rows that exist | `stay_types` 3, `payment_providers` 9, `audit_logs` 12 (the 12 system inserts of migration 10, no actor) |
+| What depends on the objects migration 17 drops | only the two columns themselves (`bookings.co_category`, `agents_partners.type`) and the function `guard_booking` (replaced inside migration 17 **before** the drops). No view, policy, default or other column uses the two enum types. |
+| Name collisions | none of the 60 new functions, the new table or the new indexes exists; the 3 functions that are replaced (`audit_row_change`, `guard_booking`, `guard_refund`) do exist; no resort named or coded like the placeholders |
+| Callable by app roles now | 4 functions, none by `anon` (as designed) |
+| Default rights for new functions | `postgres` in `public` grants new functions only to `postgres` and `service_role`; PostgreSQL still adds EXECUTE for PUBLIC to a new function, which is why every new function starts with `REVOKE ... FROM PUBLIC` (tests ACC-09, SEC-04) |
+| The `postgres` role | NOT a superuser; has BYPASSRLS; may SELECT `storage.objects` (needed by migrations 13 and 15); `storage.objects` has the `metadata` column |
+| Server settings | UTF-8; `standard_conforming_strings` on; `lock_timeout` 5 s; `statement_timeout` 120 s |
+| Storage | 3 private buckets with the agreed limits; 6 policies (3 read, 3 add; none for update/delete) |
+| Auth (public settings) | signup **disabled**, email login only, no anonymous users, email confirmation required |
+| Not readable without a dashboard login | "Secure email change" and the session lifetime: see HOSTED_VERIFICATION 0b |
+
+### 15.2 Migration by migration
+| # | Purpose and objects | Additive or destructive | Depends on | Safe on the current hosted project? | Data preservation | Recovery if it fails or must be undone | Verify after |
+|---|---|---|---|---|---|---|---|
+| 11 | `complete_password_change()` | additive (1 function) | 02 | yes | none touched | drop the function | function exists; callable by `authenticated` only |
+| 12 | 10 account functions (`profile_*`, `recover_owner_account`, `active_owner_count`, helpers); **replaces** `audit_row_change()` so the audit rows also store the reason | additive + 1 in-place function replacement (same signature; triggers keep working) | 02, 05, 06 | yes | no table touched | restore the old `audit_row_change` body from migration 05; drop the new functions | `audit_row_change` text contains `app.reason`; `recover_owner_account` executable by `service_role` only |
+| 13 | master-data functions (`upsert_resort`, `set_resort_active`, `upsert_guest`, `upsert_co_category`, `upsert_co_entry`, `upsert_stay_type`, `upsert_provider`, helpers) | additive (9 functions) | 02; the two C/O functions name tables created by 17 (PostgreSQL resolves names when a function RUNS, so creating them first is valid; they cannot work until 17) | yes | no table touched | drop the functions | callable list matches SEC-04 |
+| 14 | booking and payment-plan functions (create / update / cancel / status / plan, helpers); `next_booking_code` never reuses a number | additive (about 19 functions) | 03, 05, 13; names columns created by 17 (same remark) | yes | no table touched | drop the functions | as above |
+| 15 | payment, refund, approval, proof and correction-file functions (about 21) | additive | 04, 06, 14; reads `storage.objects` | yes (the `postgres` role can read it) | no table touched | drop the functions | as above |
+| 16 | **replaces** `guard_refund()` (refund limits: running booking `A-D-RA-RW`, cancelled/no-show `A-RA-RW`) | additive; in-place replacement of a trigger function (trigger, owner, grants unchanged) | 06 | yes | no table touched | restore the body from migration 06 | `guard_refund` text contains `v_max` |
+| 17 | configurable C/O (details 15.3): new `co_categories`; `agents_partners` renamed `co_entries`; new columns and rules on `bookings`; guard replaced; **drops 2 columns, 2 enum types, 1 index, 1 constraint** | **destructive (schema), data-preserving** | 01-06, 08, 13/14 not required | **yes, because every affected table is empty (checked)**; also proven on a populated database | converted first (tests MIG17-01..07) | see 15.4: the hosted project holds only re-creatable reference data | 15.5 list |
+| 18 | four placeholder resorts SR1-SR4 | additive (4 rows; skipped if code or name exists) | 02 | yes (no conflicting resort) | none touched | the rows can be switched off (never deleted); no booking uses them yet | 4 resorts, all active |
+
+**As a batch (11-18 in order):** 60 new functions, 3 replaced, 1 new table, 1 renamed table, 0 data rows lost (there are none to lose), 8 seed rows (4 categories, 4 resorts). The order is forced: 17 must follow 13 and 14 only for *using* the functions, not for creating them; 18 is independent but follows 17 by convention.
+
+### 15.3 Migration 17, statement by statement
+| Step | Statement | Effect on the hosted project today |
+|---|---|---|
+| A | create `co_categories`; insert Agent, Partner, Own, Direct | new table, 4 rows |
+| B | add 4 nullable columns to `bookings`; one UPDATE copies category id, category name, kind and stay-type name into them | **0 rows updated** (`bookings` is empty) |
+| C | add `category_id` to `agents_partners`; UPDATE maps the old `type` to it | **0 rows updated** |
+| D | `create or replace function guard_booking()` (copies of names; switched-off choices) | function body replaced; trigger unchanged |
+| E | `set constraints all immediate` / `deferred` | no pending checks (no rows) |
+| F | `alter table agents_partners rename to co_entries`; rename its constraints and indexes | triggers, policy, grants, RLS follow the table (verified: 5 triggers, 1 policy, SELECT for `authenticated`) |
+| G | **`drop index co_entries_type_name_key`** (replaced by `co_entries_category_name_key`) | an empty table's index |
+| H | **`alter table co_entries drop column type`** | the column holds no rows; values were mapped to `category_id` first |
+| I | `category_id` NOT NULL, FK, `unique (id, category_id)`, new unique and search indexes | nothing to violate |
+| J | rename `bookings.agent_partner_id` to `co_entry_id` (+ its index and foreign-key names) | empty table |
+| K | **`drop constraint bookings_co_rules`**, then add the new rule driven by `co_mode` | replaced |
+| L | **`alter table bookings drop column co_category`** | no rows; every row would have been converted in B |
+| M | the 4 new columns NOT NULL, checks, **composite FK** (`co_entry_id`, `co_category_id`) -> `co_entries (id, category_id)`, index | would fail only if a booking row lacked a conversion: impossible with 0 rows |
+| N | **`drop type co_category`**, **`drop type partner_type`** | no remaining user (checked in `pg_depend` terms: only the two dropped columns and `guard_booking`) |
+| O | RLS, read policy, grants (SELECT only), no-delete / no-truncate / stamp / audit triggers on `co_categories` | new table follows the same rules as all others |
+
+**Exactly which existing data could be affected:** only rows in `bookings` and `agents_partners`. **Hosted today: 0 and 0.** If either were not empty at apply time, step B/C would convert the rows (proven on a populated database by MIG17-01..07) - but the preflight in HOSTED_VERIFICATION 0 stops the run if the counts are not zero, so that path will not be exercised on hosted unless the owner decides to.
+**Side effects by design:** each converted booking's version goes up by one; the four seeded categories have no audit entry (they are inserted before the audit trigger is attached; the four resorts of migration 18 do have one).
+**Defects found in 17 during this review and fixed (unapplied file):** a leftover constraint name `bookings_agent_partner_id_fkey` is now renamed `bookings_co_entry_id_fkey`; the conversion test now checks that no constraint or index name anywhere in the schema still contains "agent" or "partner".
+
+### 15.4 Failure behaviour and recovery
+- **Atomicity.** The Supabase CLI sends each migration file as one batch, expected to run as a single implicit transaction and to record the version only on success. **This is the expected behaviour and is not verified until the first apply**; if it were wrong, a failure in the middle of 17 could leave a half-converted schema.
+- **Why the risk is small and recoverable.** The hosted project holds only reference data (3 stay types, 9 payment apps, 12 system audit rows): nothing a person typed. If anything failed, the complete recovery is to inspect the state (read-only), then - **only with your approval** - correct it or reset the schema and re-apply 01-18. There are no down-migrations.
+- **Staged execution reduces the blast radius.** Stage A applies the additive 11-16 (no table touched); stage B applies the destructive 17-18 alone. The CLI cannot apply "the first N" directly, so stage A uses a scratch copy of the migrations folder containing only 01-16 (byte-identical files; the dry run was proven: it lists exactly 11-16). The repository is not modified.
+- **Not covered:** no backup is taken (nothing irreplaceable exists; the plan of the Supabase project may not include point-in-time recovery - not checked).
+
+### 15.5 Expected state after a complete, successful apply (exact)
+| Item | Before (now) | After 11-16 | After 17-18 |
+|---|---|---|---|
+| Migration history rows | 10 | 16 | 18 |
+| Tables / views / enum types | 19 / 3 / 10 | 19 / 3 / 10 | **20** / 3 / **8** |
+| Functions in `public` | 25 | **85** | 85 |
+| Callable by signed-in users / by anonymous | 4 / 0 | **38** / 0 | 38 / 0 |
+| Triggers in `public` (+1 on `auth.users`) | 97 | 97 | **102** |
+| Policies: `public` + `storage` | 18 + 6 | 18 + 6 | **19** + 6 |
+| Tables without RLS | 0 | 0 | 0 |
+| `co_categories` / `resorts` / `stay_types` / `payment_providers` rows | - / 0 / 3 / 9 | same | **4 / 4** / 3 / 9 |
+| `bookings`, `co_entries`, payments, refunds, profiles, auth users | 0 | 0 | 0 |
+| Audit rows | 12 | 12 | 16 |
+| Types `co_category`, `partner_type`; columns `bookings.co_category`, `co_entries.type` | exist | exist | **gone** |
+(Figures computed from a fresh local build of migrations 01-18; Stage A figures follow from 60 new functions all being created in 11-16.)
+
+### 15.6 Rehearsal as the hosted role (new evidence)
+The same 355 database tests and 18 simultaneous-request tests were run on real PostgreSQL 17.11 with **migrations 01-18 executed as a plain, non-superuser role named `postgres`** (CREATEROLE, BYPASSRLS, owns what it creates), exactly the hosted role's attributes: **all pass.** A first attempt with a differently named role failed in migration 08 ("permission denied to change default privileges") - a flaw of that attempt, not of the migrations: migration 08 says `alter default privileges for role postgres`, so the rehearsal role must really be named `postgres`. This rehearsal does **not** reproduce Supabase's `supautils` extension, PostgREST, the real Auth and Storage services, or object ownership by `supabase_admin`.

@@ -53,6 +53,8 @@ export async function createPgDb(
         if not exists (select 1 from pg_roles where rolname = 'anon')          then create role anon          nologin; end if;
         if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
         if not exists (select 1 from pg_roles where rolname = 'service_role')  then create role service_role  nologin bypassrls; end if;
+        -- stand-in for the Supabase postgres role: NOT a superuser, but may create roles and bypasses row-level security
+        if not exists (select 1 from pg_roles where rolname = 'postgres') then create role postgres nologin createrole bypassrls; end if;
       end $$;`);
     await admin.query("select pg_advisory_unlock(7770001)");
     await admin.query(`create database ${name}`);
@@ -66,26 +68,54 @@ export async function createPgDb(
   await client.connect();
 
   await client.query(standin.replace(/create role [^;]+;/g, ""));
-  for (const file of files) {
+
+  // STATEADV_PG_RESTRICTED=1 : REHEARSAL of the hosted situation. The migrations run as `postgres`, which is NOT a
+  // superuser (like Supabase's `postgres`). It owns what it creates, and also owns the stand-in auth/storage objects
+  // (on Supabase the `supautils` extension lets `postgres` create policies/triggers there). If any migration secretly
+  // needed superuser rights it fails here.
+  const restricted = process.env.STATEADV_PG_RESTRICTED === "1";
+  if (restricted) {
+    const r = await client.query(
+      "select rolsuper from pg_roles where rolname = 'postgres'",
+    );
+    if (r.rows[0]?.rolsuper !== false) {
+      throw new Error(
+        "The rehearsal needs a server whose superuser is NOT called postgres (the role postgres must be a plain role). See the HOSTED_VERIFICATION notes.",
+      );
+    }
+  }
+  const runMigration = async (file: string) => {
     const sql = readFileSync(join(migrationsDir, file), "utf8");
     try {
+      if (restricted) await client.query("set role postgres");
       await client.query(sql);
     } catch (e) {
       throw new Error(`Migration ${file} failed: ${(e as Error).message}`);
+    } finally {
+      if (restricted) await client.query("reset role");
     }
+  };
+  if (restricted) {
+    await client.query(`
+      alter database ${name} owner to postgres;
+      alter schema public owner to postgres;
+      alter schema extensions owner to postgres;
+      alter table auth.users owner to postgres;
+      alter table storage.buckets owner to postgres;
+      alter table storage.objects owner to postgres;
+      grant usage on schema auth, storage to postgres;
+      -- Supabase's broad default rights for objects created by its postgres role (migration 08 removes them)
+      alter default privileges for role postgres in schema public grant all on tables    to anon, authenticated, service_role;
+      alter default privileges for role postgres in schema public grant all on sequences to anon, authenticated, service_role;
+      alter default privileges for role postgres in schema public grant all on functions to anon, authenticated, service_role;`);
   }
+  for (const file of files) await runMigration(file);
 
   const db: TestDb = {
     pg: client,
     url: url.toString(),
     async applyRest() {
-      for (const file of rest) {
-        try {
-          await client.query(readFileSync(join(migrationsDir, file), "utf8"));
-        } catch (e) {
-          throw new Error(`Migration ${file} failed: ${(e as Error).message}`);
-        }
-      }
+      for (const file of rest) await runMigration(file);
     },
     async q(sql, params) {
       const r = await client.query(sql, params as unknown[]);

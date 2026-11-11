@@ -87,3 +87,39 @@ jobs:
       # The simultaneous-request tests open dozens of connections at once: run them alone, not next to other test files.
       - name: Concurrency tests on real PostgreSQL 17 (many connections at the same moment)
         run: npx vitest run tests/db/concurrency.pg.test.ts
+
+  database-postgres-17-restricted:
+    name: Database tests on PostgreSQL 17 as a NON-superuser (like Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          # The server's superuser is called bootstrap, so that the migrations can run as a plain role named postgres,
+          # which is what Supabase gives us (no superuser rights).
+          POSTGRES_USER: bootstrap
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bootstrap"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      STATEADV_PG_URL: postgres://bootstrap:postgres@localhost:5432/postgres
+      STATEADV_PG_RESTRICTED: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Show the PostgreSQL version being tested
+        run: node scripts/pg-version.mjs
+      - name: All database tests, migrations run as a plain (non-superuser) role
+        run: npx vitest run tests/db --exclude tests/db/concurrency.pg.test.ts
+      - name: Concurrency tests, same setup
+        run: npx vitest run tests/db/concurrency.pg.test.ts

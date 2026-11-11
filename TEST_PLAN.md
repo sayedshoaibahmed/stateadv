@@ -341,7 +341,7 @@ Flows F1–F10 (UI spec §4) on desktop and mobile. Plus: keyboard-only booking 
 | CON-01..11 | simultaneous requests: booking numbers, double Save, double approval, refund limit, Owner race, reversal vs refund, payment numbers, same-version edits, plan changes, same file | skipped (one connection) | ✅ | after apply |
 | ACU-01..12, STO-U1..U10, ERR-01..04, DBC-01..04, FUO-01..06, REC-01..04 | rules and script logic with stand-ins | unit | — | — |
 
-**Mutation checks**: 42 weakened copies of the migrations are all caught by the PGlite tests; five locking weakenings were run against real PostgreSQL 17 (see MIGRATION_REVIEW §13.6).
+**Mutation checks (schedule, decided 2026-11-11):** the exhaustive 53-mutation suite is deferred to **M9**; M2 runs only essential targeted security/financial checks (`MUTATION_ONLY=...`); M5 repeats targeted financial checks; other milestones run ordinary tests. The runner reports a crashed test process as INCONCLUSIVE (3 tries) and counts it as a problem, never as caught. Earlier: 42 weakened copies of the migrations are all caught by the PGlite tests; five locking weakenings were run against real PostgreSQL 17 (see MIGRATION_REVIEW §13.6).
 
 **How to run**
 - Everything quick (PGlite): `npm test`
@@ -374,3 +374,12 @@ Mutation check now has 42 weakened versions (11 added for these decisions).
 | STO/ERR/other | error-message coverage includes `STAY_TYPE_INACTIVE` | unit | — |
 
 Mutation check: **53** weakened versions (11 added here). The booking screens that use the picker belong to M4; the picker's rules are tested (MDS-*) and the management screens are built, type-checked and build-tested, but have **not** been exercised in a browser against a real project.
+
+## 2.19 Added during the pre-apply review (2026-11-11)
+| IDs | What | PGlite | PG 17 superuser | PG 17 as plain role `postgres` |
+|---|---|---|---|---|
+| TYP-01..05 | generated TypeScript types match tables, views, enums, functions, columns | pass | pass | pass |
+| MIG17-04 (widened) | no constraint or index name in the schema still says "agent" or "partner" | pass | pass | pass |
+| whole database suite + 18 simultaneous-request tests | repeated in the "hosted rehearsal" configuration (`STATEADV_PG_RESTRICTED=1`, CI job `database-postgres-17-restricted`) | - | pass | pass |
+
+Totals at the time of writing: PGlite **508** pass / 18 skipped; PostgreSQL 17.11 **355** (+18 concurrency, run separately) in each of the two configurations. CI on GitHub for commit `8be574e` (before these additions): three jobs green (reported by the owner).
