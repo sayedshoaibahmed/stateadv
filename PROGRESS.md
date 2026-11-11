@@ -3,8 +3,7 @@
 Last updated: 2026-11-11
 
 ## Current status
-**M1 – Project Setup: complete locally, awaiting owner review.** Code is committed locally only. It has **not been pushed**, because the GitHub repository is currently **public** (it must be private; see the M1 report).
-- M0 approved by the owner on 2026-11-11 (O1–O4 accepted with the approval).
+**M1 – Project Setup: complete and pushed, awaiting owner review.** Commit 733d719 is on GitHub (`main`, private repo). The owner has made the repo private and disabled Supabase public sign-ups (both verified 2026-11-11).
 - Q11 (hosting budget) is still deferred to before M10.
 - M2 will not start until the owner reviews and approves M1.
 
@@ -61,8 +60,8 @@ Last updated: 2026-11-11
 | CI workflow | ⚠️ written but **not run yet** (runs on the first push) |
 
 ## M1 known issues
-1. **GitHub repo is public.** It must be private (brief §17). Push is held until the owner changes the visibility.
-2. **Supabase dev project allows public sign-up** (`disable_signup: false`). There is no data yet, and M2's RLS will deny anyone without an active profile, but the owner should turn sign-ups off in the dashboard now.
+1. ~~GitHub repo public~~ — fixed: now private (anonymous API returns 404). Pushed.
+2. ~~Supabase public sign-up~~ — fixed: `disable_signup: true` verified.
 3. `npm audit`: 7 moderate findings, all in `minimatch` inside ESLint plugins (dev tooling only, never shipped). There is no non-breaking fix; recheck when `eslint-config-next` updates.
 4. The CSP `script-src` (nonce-based) is planned for M9; current CSP directives are the safe subset.
 5. Playwright browsers are not installed yet (needed from M3).
