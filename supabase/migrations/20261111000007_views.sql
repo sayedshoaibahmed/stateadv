@@ -87,6 +87,29 @@ select a.booking_id, a.resort_id, a.adjustment_date, a.amount_paise, 'adjustment
 from public.expected_adjustments a;
 
 -- ---------------------------------------------------------------------------
+-- correction_files: every file added AFTER approval (Q9a), for the owner to review.
+-- Shown on the booking page, in the PDF and in the Activity filter. Changes no figure.
+-- ---------------------------------------------------------------------------
+create view public.correction_files
+with (security_invoker = true) as
+select f.id                                              as proof_id,
+       case when f.payment_id is not null then 'payment' else 'refund' end as kind,
+       coalesce(f.payment_id, f.refund_id)               as record_id,
+       coalesce(p.payment_code, r.refund_code)           as record_code,
+       coalesce(p.booking_id, r.booking_id)              as booking_id,
+       coalesce(p.resort_id, r.resort_id)                as resort_id,
+       f.storage_path,
+       f.correction_reason,
+       f.uploaded_by,
+       u.full_name                                       as uploaded_by_name,
+       f.uploaded_at
+from public.proofs f
+left join public.payments p on p.id = f.payment_id
+left join public.refunds  r on r.id = f.refund_id
+left join public.user_profiles u on u.id = f.uploaded_by
+where f.is_correction;
+
+-- ---------------------------------------------------------------------------
 -- booking_overdue(as_of): money that should have arrived by that date but has not.
 --   overdue = max( expected up to the date - net collected up to the date, 0 )
 -- (net collected = approved payments - approved refunds, by their actual dates)

@@ -33,6 +33,8 @@ declare
   disabling      boolean;
   enabling       boolean;
   owner_target   boolean;
+  verified_sync  boolean := false;
+  confirmed_mail text;
 begin
   -- One account change at a time, so the "at least one active Owner" count below
   -- cannot be fooled by two simultaneous changes (two Owners disabling each other).
@@ -73,7 +75,22 @@ begin
   end if;
 
   -- ---- UPDATE ---------------------------------------------------------------
-  if not actor_active and not recovery then
+  -- O7 - verified own-email change. Supabase Auth has CONFIRMED a new address and the
+  -- trigger on auth.users copies it here (see sync_profile_email below). This is accepted
+  -- only when ALL of these hold: there is no session user, the flag set by that trigger is
+  -- on, the new value is exactly the address Auth confirmed for the SAME user, and nothing
+  -- else about the account changes. Anything else is judged by the ordinary rules below.
+  if actor is null
+     and coalesce(current_setting('app.email_sync', true), '') = 'on'
+     and new.email is distinct from old.email then
+    select lower(u.email) into confirmed_mail from auth.users u where u.id = old.id;
+    verified_sync := new.email = confirmed_mail
+      and (new.full_name, new.phone, new.role, new.is_active, new.must_change_password, new.disabled_at, new.disabled_by)
+          is not distinct from
+          (old.full_name, old.phone, old.role, old.is_active, old.must_change_password, old.disabled_at, old.disabled_by);
+  end if;
+
+  if not actor_active and not recovery and not verified_sync then
     raise exception 'NOT_ALLOWED' using detail = 'Only an active, logged-in user can change accounts.';
   end if;
   if new.id is distinct from old.id
@@ -96,11 +113,19 @@ begin
     raise exception 'OWNER_ACTION_REQUIRES_OWNER' using detail = 'Only an Owner can give the Owner role.';
   end if;
 
+  -- O7: nobody edits their OWN login email directly. The only way is the verified
+  -- process above (current password + confirmation link(s) handled by Supabase Auth).
+  if new.email is distinct from old.email and not verified_sync and not recovery and actor = old.id then
+    raise exception 'EMAIL_CHANGE_REQUIRES_VERIFICATION'
+      using detail = 'To change your own email, use My Account and confirm the link sent to your email.';
+  end if;
+
   -- O1: disabling / re-enabling an Owner, changing an Owner's email or role, or
   -- flagging an Owner for a password reset: only ANOTHER active Owner.
+  -- (A role is never changed by the account itself: actor = old.id is refused here.)
   if owner_target and not recovery
      and (disabling or enabling
-          or new.email is distinct from old.email
+          or (new.email is distinct from old.email and not verified_sync)
           or new.role  is distinct from old.role
           or (new.must_change_password and not old.must_change_password)) then
     if actor_role <> 'owner' or actor = old.id then
@@ -674,7 +699,8 @@ end
 $$;
 
 -- ---------------------------------------------------------------------------
--- proofs: add files only while waiting; hide (never delete) only while waiting
+-- proofs: add files only while waiting; hide (never delete) only while waiting;
+-- after approval only a controlled "correction file" (reason mandatory) can be added
 -- ---------------------------------------------------------------------------
 create function public.guard_proof()
 returns trigger
@@ -695,9 +721,22 @@ begin
     else
       select r.status into parent from public.refunds r where r.id = new.refund_id;
     end if;
-    if parent is distinct from 'waiting' then
+    -- Normal files: only while waiting. After approval the originals are locked and the ONLY
+    -- way to add a file is the controlled correction (Q9a): approved items only, flagged as
+    -- a correction, with a written reason (the table CHECK enforces 10+ characters).
+    if parent = 'waiting' then
+      if new.is_correction then
+        raise exception 'PROOF_CORRECTION_NOT_ALLOWED'
+          using detail = 'Correction files are only for approved payments and refunds. While waiting, add a normal file.';
+      end if;
+    elsif parent = 'approved' then
+      if not new.is_correction then
+        raise exception 'PROOF_LOCKED'
+          using detail = 'An approved payment or refund is locked. Use "Add correction file" and give a reason.';
+      end if;
+    else
       raise exception 'PROOF_LOCKED'
-        using detail = 'Files can only be added while the payment or refund is waiting for approval.';
+        using detail = 'Files cannot be added to a rejected or reversed payment or refund. Enter a new one instead.';
     end if;
     if new.hidden_at is not null then
       raise exception 'PROOF_LOCKED';
@@ -709,10 +748,10 @@ begin
 
   -- UPDATE: the only change ever allowed is hiding the file once.
   if (new.payment_id, new.refund_id, new.storage_path, new.original_file_name, new.mime_type,
-      new.size_bytes, new.sha256, new.uploaded_by, new.uploaded_at)
+      new.size_bytes, new.sha256, new.uploaded_by, new.uploaded_at, new.is_correction, new.correction_reason)
      is distinct from
      (old.payment_id, old.refund_id, old.storage_path, old.original_file_name, old.mime_type,
-      old.size_bytes, old.sha256, old.uploaded_by, old.uploaded_at)
+      old.size_bytes, old.sha256, old.uploaded_by, old.uploaded_at, old.is_correction, old.correction_reason)
      or old.hidden_at is not null
      or new.hidden_at is null then
     raise exception 'PROOF_LOCKED' using detail = 'Files cannot be edited. A file can only be hidden, once.';
@@ -905,3 +944,37 @@ create constraint trigger trg_99_proof_rule after insert or update on public.ref
   deferrable initially deferred for each row execute function public.check_proof_rule();
 create constraint trigger trg_99_proof_rule after insert or update on public.proofs
   deferrable initially deferred for each row execute function public.check_proof_rule();
+
+-- =============================================================================
+-- O7 - VERIFIED OWN-EMAIL CHANGE: copy an address that Supabase Auth has CONFIRMED
+--
+-- A user asks to change their email (current password + new address). Supabase Auth
+-- sends confirmation link(s) (new address, and old address too with "Secure email
+-- change"). Only when every link is used does Auth update auth.users.email. This
+-- trigger then copies that confirmed address into user_profiles.email.
+--
+-- The account guard (guard_user_profiles) accepts the copy ONLY if the new value equals
+-- the confirmed address of the SAME user and nothing else about the account changes.
+-- The flag below is transaction-local and switched off again immediately. If the copy
+-- is refused for any reason, the whole Auth change is rolled back - the two never differ.
+-- =============================================================================
+create function public.sync_profile_email()
+returns trigger
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  if new.email is not null and new.email is distinct from old.email then
+    perform set_config('app.email_sync', 'on', true);
+    update public.user_profiles p
+       set email = lower(new.email)
+     where p.id = new.id and p.email is distinct from lower(new.email);
+    perform set_config('app.email_sync', 'off', true);
+  end if;
+  return null;
+end
+$$;
+
+create trigger trg_sync_profile_email
+  after update of email on auth.users
+  for each row execute function public.sync_profile_email();

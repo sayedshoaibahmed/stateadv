@@ -250,7 +250,7 @@ describe("Owner accounts are protected (O1, O2, OWN-01..05, OWN-11, OWN-12)", ()
     );
   });
 
-  it("the Owner cannot change their own email or flag themselves for a password reset (needs another Owner)", async () => {
+  it("the Owner cannot edit their own email directly - it must go through the verified process (O7)", async () => {
     await expectDbError(
       asUser(w.owner, () =>
         q(
@@ -258,7 +258,7 @@ describe("Owner accounts are protected (O1, O2, OWN-01..05, OWN-11, OWN-12)", ()
           [w.owner],
         ),
       ),
-      "OWNER_ACTION_REQUIRES_OWNER",
+      "EMAIL_CHANGE_REQUIRES_VERIFICATION",
     );
   });
 

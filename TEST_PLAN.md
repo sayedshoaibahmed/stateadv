@@ -263,27 +263,28 @@ Tests never run against production, and **no test data is ever left in the real 
 | PDF-08 | generator throws | data saved, job failed, retry succeeds |
 | PDF-09 | download an old version | works via signed URL |
 
-### 2.13a Decisions of 2026-11-11 (O7, Q9a, D5) — to be written with the matching migration changes
+### 2.13a Decisions of 2026-11-11 (O7, Q9a, D5)
+**Status:** database level IMPLEMENTED and passing (27 tests in `tests/db/email-change-and-corrections.test.ts`, plus 18/18 mutation catches). Rows marked *app level* need the screens and the real Supabase Auth emails and are tested later in M2 / on the real project.
 | ID | Case | Expected |
 |---|---|---|
-| EML-01 | an Owner (or Manager) asks to change their own email | nothing changes in `auth.users` or `user_profiles` until the confirmation link(s) are used |
-| EML-02 | the wrong current password is given | request refused, nothing sent |
-| EML-03 | the confirmed address arrives (simulated change of `auth.users.email`) | `user_profiles.email` takes exactly that address; audit row with old and new; alert raised |
-| EML-04 | direct attempt to set a different email on a profile (own account, with or without a session) | refused (`OWNER_ACTION_REQUIRES_OWNER` for Owners, `NOT_ALLOWED` otherwise) |
-| EML-05 | the sync flag set by a normal logged-in user | does not allow any change (it only works with no session user and a matching confirmed address) |
-| EML-06 | the sole Owner changes their own **role** (any route) | refused |
-| EML-07 | another Owner changes an Owner's email (O1 route) | still works with reason + password re-entry |
-| EML-08 | `auth.users` email and `user_profiles` email differ after a test | nightly integrity check reports it |
-| COR-01 | add a correction file to an **Approved** payment with a reason of 10+ characters | accepted; tagged "Added after approval"; audit row; no amount/status/date changes |
-| COR-02 | the same without a reason or with a short one | refused (`proofs` CHECK) |
-| COR-03 | add a correction file to a Waiting, Rejected or Reversed payment | refused (Waiting uses the normal add; others need a new payment) |
-| COR-04 | hide, edit or replace any original or correction file of an Approved payment | refused (`PROOF_LOCKED`) |
-| COR-05 | correction file for an Approved refund | same rules as payments |
-| COR-06 | correction file changes `booking_financials` | never; all figures identical before and after |
-| COR-07 | correction file appears in the "Corrections added after approval" list and on the booking PDF | ✓ |
-| REV-01 | reverse an approved payment while approved refunds depend on it | refused (`REVERSAL_EXCEEDS_REFUNDS`) — already covered by the existing database test |
-| REV-02 | the same while a refund is only **waiting** | refused; allowed once that refund is rejected |
-| REV-03 | reverse after the dependent refund was reversed | allowed |
+| EML-01 | an Owner (or Manager) asks to change their own email | *app level:* nothing changes in `auth.users` or `user_profiles` until the confirmation link(s) are used (database side: the profile never changes except by the sync) |
+| EML-02 | the wrong current password is given | *app level:* request refused, nothing sent |
+| EML-03 | the confirmed address arrives (simulated change of `auth.users.email`) | ✅ `user_profiles.email` takes exactly that address (lower-cased); only the email changes; audit row with old and new; *alert: app level* |
+| EML-04 | direct attempt to set a different email on a profile (own account, with or without a session) | ✅ refused (`EMAIL_CHANGE_REQUIRES_VERIFICATION` for the account itself, `NOT_ALLOWED` with no session) |
+| EML-05 | the sync flag set by anyone | ✅ allows nothing beyond copying the address Auth confirmed for that same user: wrong address, another user's address, extra changes (role, status) and any logged-in user are all refused |
+| EML-06 | the sole Owner changes their own **role** (any route); a Manager promotes themselves | ✅ refused |
+| EML-07 | another Owner changes an Owner's email (O1 route) | ✅ still works at database level (reason + password re-entry: *app level*); a Manager is refused |
+| EML-08 | if the profile cannot take the address, the Auth change is rolled back | ✅ both stay as they were. *(The nightly check that compares the two is an app-level task.)* |
+| COR-01 | add a correction file to an **Approved** payment with a reason of 10+ characters | ✅ accepted; uploader stamped from the session; audit row; no amount/status/date changes |
+| COR-02 | the same without a reason or with a short one; an ordinary file carrying a reason | ✅ refused (`proofs_correction_fields`) |
+| COR-03 | add a correction file to a Waiting, Rejected or Reversed payment; add an ordinary file to an Approved one | ✅ refused (`PROOF_CORRECTION_NOT_ALLOWED` / `PROOF_LOCKED`) |
+| COR-04 | hide, edit, convert or delete any original or correction file of an Approved payment | ✅ refused (`PROOF_LOCKED`, `DELETE_NOT_ALLOWED`) |
+| COR-05 | correction file for an Approved refund | ✅ same rules as payments |
+| COR-06 | correction file changes `booking_financials`, the payment row or its history | ✅ never; everything identical before and after |
+| COR-07 | correction file appears in the "Corrections added after approval" list and on the booking PDF | ✅ list (`correction_files`: who, when, why, which payment); *PDF: app level* |
+| REV-01 | reverse an approved payment while approved refunds depend on it | ✅ refused (`REVERSAL_EXCEEDS_REFUNDS`) — existing test, unchanged |
+| REV-02 | the same while a refund is only **waiting** | ✅ refused; allowed once that refund is rejected |
+| REV-03 | reverse after the dependent refund was reversed | ✅ allowed |
 
 ### 2.14 UI / E2E
 Flows F1–F10 (UI spec §4) on desktop and mobile. Plus: keyboard-only booking creation, a throttled network during upload, the offline banner, plain-English errors, and the dashboard showing exactly one Total Collection (Approved) card and a separate Waiting card (Q17).

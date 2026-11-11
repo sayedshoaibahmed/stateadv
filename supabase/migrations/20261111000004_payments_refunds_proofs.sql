@@ -156,7 +156,8 @@ create index refunds_waiting_idx     on public.refunds (recorded_at) where statu
 -- ---------------------------------------------------------------------------
 -- proofs: screenshot / receipt files of a payment OR a refund.
 -- The file lives in private Storage; this row holds only the object name and
--- metadata. Files are hidden, never deleted.
+-- metadata. Files are hidden, never deleted. After a decision the originals are
+-- locked; only a controlled correction file (is_correction) can be added.
 -- ---------------------------------------------------------------------------
 create table public.proofs (
   id                 uuid primary key default gen_random_uuid(),
@@ -172,6 +173,9 @@ create table public.proofs (
   hidden_at          timestamptz,
   hidden_by          uuid references public.user_profiles (id),
   hidden_reason      text,
+  -- Controlled correction (Q9a): a file added AFTER approval. The originals are never touched.
+  is_correction      boolean not null default false,
+  correction_reason  text,
 
   constraint proofs_one_parent  check (num_nonnulls(payment_id, refund_id) = 1),
   constraint proofs_path_key    unique (storage_path),
@@ -179,6 +183,11 @@ create table public.proofs (
   constraint proofs_mime        check (mime_type in ('image/jpeg', 'image/png', 'image/webp', 'application/pdf')),
   constraint proofs_size        check (size_bytes between 1 and 10485760),
   constraint proofs_sha256_fmt  check (sha256 ~ '^[0-9a-f]{64}$'),
+  -- A correction file always carries a written reason of at least 10 characters; an ordinary file never does.
+  constraint proofs_correction_fields check (
+    (is_correction and length(btrim(coalesce(correction_reason, ''))) >= 10)
+    or (not is_correction and correction_reason is null)
+  ),
   constraint proofs_hidden      check (
     (hidden_at is null and hidden_by is null and hidden_reason is null)
     or (hidden_at is not null and hidden_by is not null and length(btrim(coalesce(hidden_reason, ''))) > 0)

@@ -2,21 +2,23 @@
 
 **Status: written and tested locally. NOT applied to Supabase.** Nothing here touches your Supabase project until you review and explicitly approve applying it.
 
+**Updated 2026-11-11:** your decisions O7 (verified own-email change), Q9a (correction files) and D5 (reversal protection) are now in the migration files. Section 10 shows exactly what changed, file by file. Sections 1-9 describe the current files.
+
 Files: `supabase/migrations/20261111000001_…` to `…000010_…` (10 files, about 2,000 lines of SQL).
-How it was checked: all ten files are applied to a throw-away in-memory PostgreSQL (PGlite) with stand-ins for Supabase's own parts, then **143 database tests** and a **mutation check** run against it (§9).
+How it was checked: all ten files are applied to a throw-away in-memory PostgreSQL (PGlite) with stand-ins for Supabase's own parts, then **170 database tests** and a **mutation check (18 deliberately weakened versions)** run against it (§9).
 
 ## 1. What these migrations create
 
 | | Count |
 |---|---|
-| Tables | 19 (+ 2 read-only views) |
+| Tables | 19 (+ 3 read-only views) |
 | Enum types (fixed lists) | 10 |
-| Primary keys / Foreign keys / Unique constraints / Check constraints | 19 / 59 / 16 / 74 |
+| Primary keys / Foreign keys / Unique constraints / Check constraints | 19 / 59 / 16 / 75 |
 | Indexes (besides primary keys) | 57 |
 | Generated (database-calculated) columns | 5 |
 | Row Level Security policies | 24 (18 on tables, 6 on file storage) |
-| Triggers (the safety rules) | 97, of which 6 are "checked at commit" |
-| Functions | 24 (14 run with elevated rights; **only 4 are callable by app users**, all read-only) |
+| Triggers (the safety rules) | 97 on our tables (6 are "checked at commit") + 1 on Supabase's `auth.users` (copies a confirmed email) |
+| Functions | 25 (15 run with elevated rights; **only 4 are callable by app users**, all read-only) |
 | Data inserted | only 3 stay types and 9 payment providers (migration 10) |
 
 What is **not** in these files (later work inside the same M2 milestone, after you approve this part): the write functions (RPCs), login / user-management screens and the first-Owner script, the GitHub Actions database job and the true-concurrency tests, plus the two agreed additions in §10 (verified own-email change, correction files).
@@ -39,7 +41,7 @@ Errors use short codes (for example `LAST_OWNER_PROTECTED`). The app will turn e
 | 04 | `payments_refunds_proofs` | `payments`, `refunds`, `proofs`, `approval_history`. |
 | 05 | `pdf_and_audit` | `booking_pdf_versions`, `pdf_jobs`, `audit_logs`, `system_status`, and the audit trigger function. |
 | 06 | `guards_and_triggers` | All the guard rules and commit-time checks, and attaching every trigger. |
-| 07 | `views` | `booking_financials`, `expected_entries`, `booking_overdue()`: the only source of money figures. |
+| 07 | `views` | `booking_financials`, `expected_entries`, `booking_overdue()`: the only source of money figures; and `correction_files`, the review list of files added after approval. |
 | 08 | `security_rls_grants` | Removes Supabase's broad default rights, turns on RLS everywhere, adds the read policies, grants the minimum. |
 | 09 | `storage` | Three private file buckets and their policies. |
 | 10 | `reference_data` | Stay types and payment providers. |
@@ -99,7 +101,7 @@ Money is always a whole number of **paise** (`bigint`). Amounts typed into booki
 - **Indexes:** by booking; (resort, date); (status, date); waiting items by entry time; payment reference number.
 
 ### `proofs` — screenshot / receipt of a payment or refund
-- Belongs to exactly **one** payment or refund. Object name must look like `{booking-uuid}/{uuid}.jpg|png|webp|pdf` (or `refunds/…`) — path tricks are refused. Type limited to JPEG/PNG/WEBP/PDF; size 1 byte–10 MB; 64-character fingerprint (duplicate-screenshot warning). Hiding needs a reason; files are never deleted. Indexes: by payment, by refund, by fingerprint.
+- Belongs to exactly **one** payment or refund. Object name must look like `{booking-uuid}/{uuid}.jpg|png|webp|pdf` (or `refunds/…`) — path tricks are refused. Type limited to JPEG/PNG/WEBP/PDF; size 1 byte–10 MB; 64-character fingerprint (duplicate-screenshot warning). Hiding needs a reason; files are never deleted. **Correction files (Q9a):** `is_correction` and `correction_reason` columns; a CHECK makes a correction file carry a written reason of at least 10 characters and an ordinary file carry none. Indexes: by payment, by refund, by fingerprint.
 
 ### `approval_history` (append-only)
 - One row per status change of a payment **or** refund, written **by the database**, never by app code: from, to, reason, who, when, and whether the person acted on their own record.
@@ -115,7 +117,7 @@ Money is always a whole number of **paise** (`bigint`). Amounts typed into booki
 |---|---|
 | Supabase default | Supabase gives `anon`/`authenticated` broad rights on every new table and function. Migration 08 first **removes all of that**, then grants back only what is below. |
 | `anon` | No privilege of any kind on any table or view or function. |
-| `authenticated` | `SELECT` on 18 tables and 2 views. **No** insert/update/delete/truncate anywhere. No access at all to `booking_sequences`. Can execute only: `is_active_user`, `today_ist`, `normalize_mobile`, `booking_overdue`. |
+| `authenticated` | `SELECT` on 18 tables and 3 views. **No** insert/update/delete/truncate anywhere. No access at all to `booking_sequences`. Can execute only: `is_active_user`, `today_ist`, `normalize_mobile`, `booking_overdue`. |
 | RLS | Enabled on all 19 tables. **18 identical read policies** "active users can read": `SELECT … TO authenticated USING (is_active_user())`. `booking_sequences` has RLS on and no policy. **There are no insert/update/delete policies on any table.** |
 | Views | `security_invoker`: they run with the reader's rights, so the policies still apply. |
 | `service_role` (secret key) | Keeps its Supabase default rights (it must create Auth users), but **every guard trigger still applies to it**, including no-delete and the Owner rules. |
@@ -131,6 +133,8 @@ Money is always a whole number of **paise** (`bigint`). Amounts typed into booki
 - **Nobody can disable themselves.**
 - **O1:** disabling/enabling an Owner, changing an Owner's email or role, or flagging an Owner for a password reset needs **another active Owner**.
 - **At least one active Owner always exists** — enforced for everyone, including the recovery path.
+- **Own-email change (O7):** nobody can edit their *own* profile email directly (`EMAIL_CHANGE_REQUIRES_VERIFICATION`). The only way is the verified process: Supabase Auth confirms the new address (and the old one, with Secure email change on), updates `auth.users.email`, and a trigger copies it to the profile. The account guard accepts that copy **only if** there is no session user, the trigger's switch is on, the new value is exactly the address Auth confirmed for the *same* user, and **nothing else about the account changes**. If the copy is refused, the whole Auth change is rolled back. Changing someone else's email (the admin route) works as before: another Owner for an Owner (O1).
+- **Roles are never self-service:** an Owner cannot demote themselves and a Manager cannot promote themselves.
 - Who disabled an account and when are stamped from the session.
 - **Recovery path:** a session with no user plus a setting that only the (service-role-only) recovery function will set (written later in M2). It can re-enable an Owner but can never remove the last one.
 
@@ -155,7 +159,8 @@ Money is always a whole number of **paise** (`bigint`). Amounts typed into booki
 - **History is written by a trigger on every status change**, so a decision cannot happen without leaving its history row.
 
 ### 6.5 Files (`guard_proof`) and the screenshot rule
-- Files can be added or hidden only while the item is **waiting**; a file can be hidden once; never deleted or edited.
+- Ordinary files can be added or hidden only while the item is **waiting**; a file can be hidden once; never deleted or edited.
+- **After approval the originals are locked** (cannot be added to, hidden, edited or deleted). The only exception is a **correction file (Q9a)**: allowed on **Approved** payments and refunds only, flagged `is_correction`, with a written reason of at least 10 characters, stamped with the real person and time, audited, listed in `correction_files`, and with **no effect on any amount, status, date or financial figure**. Corrections are refused on waiting items (add a normal file instead) and on rejected/reversed items (enter a new payment). A correction file is itself permanent.
 - **Commit-time check:** UPI / Card / Cheque payments **and refunds** must always keep at least one visible file; Cash / Other need none (Q9, D3).
 
 ### 6.6 Everywhere
@@ -166,7 +171,7 @@ Money is always a whole number of **paise** (`bigint`). Amounts typed into booki
 
 ## 7. Functions
 
-24 functions. 14 run with elevated rights (`SECURITY DEFINER`, empty search path so they cannot be tricked). Thirteen of those are triggers or helpers that app users **cannot** call. The fourteenth, `is_active_user()`, needs elevated rights only so it can look up the caller's profile. App users can call exactly four functions, all read-only: `is_active_user()`, `today_ist()`, `normalize_mobile()` and `booking_overdue(date)`. A test fails if any other function becomes callable by them or by `anon`.
+25 functions. 15 run with elevated rights (`SECURITY DEFINER`, empty search path so they cannot be tricked). Fourteen of those are triggers or helpers that app users **cannot** call. The fifteenth, `is_active_user()`, needs elevated rights only so it can look up the caller's profile. App users can call exactly four functions, all read-only: `is_active_user()`, `today_ist()`, `normalize_mobile()` and `booking_overdue(date)`. A test fails if any other function becomes callable by them or by `anon`.
 
 ## 8. Money figures (`booking_financials`, `expected_entries`, `booking_overdue`)
 
@@ -174,26 +179,42 @@ One row per booking with: amount due, total collection (approved only), waiting,
 
 ## 9. How it was tested
 
-- **143 database tests** (all fictional data) in five files: structure and security; accounts and Owner protection; bookings, cancellation and plan; payments, refunds and approvals; money views.
+- **170 database tests** (all fictional data) in six files: structure and security; accounts and Owner protection; bookings, cancellation and plan; payments, refunds and approvals; money views; and the new email-change / correction-file rules. Together with the 91 other tests: **261 tests**, all passing.
 - **Money cross-check:** the views are compared with the independent reference formulas in `src/lib/calc.ts` on the 19 golden cases (FIN-01…19) **and 250 random bookings, to the paisa**, including rejected/reversed noise that must not count.
-- **Mutation check** (`node scripts/mutation-check.mjs`): the migrations are deliberately weakened in ten ways, one at a time, in a temporary copy — last-Owner protection removed, RLS off, past-due lock off, waiting refunds reduce Pending, app users given INSERT, functions open to anon, refund limit off, approved payments editable, cancelled amounts editable, audit log editable. **All ten make real tests fail.**
-- Bugs found and fixed by these tests before review: an expression in the commit-time plan check that referenced a column not present on every table, and a plan-row guard that rejected the intended "replace" update.
+- **Mutation check** (`node scripts/mutation-check.mjs`): the migrations are deliberately weakened in **18** ways, one at a time, in a temporary copy. The original ten: last-Owner protection removed, RLS off, past-due lock off, waiting refunds reduce Pending, app users given INSERT, functions open to anon, refund limit off, approved payments editable, cancelled amounts editable, audit log editable. The eight new ones: email sync accepts any address; email sync may carry a role change; users may edit their own email directly; corrections allowed on waiting payments; ordinary files allowed on approved payments; correction reason not mandatory; originals can be hidden after approval; payment reversal allowed while refunds depend on it. **All 18 make real tests fail.**
+- Bugs found and fixed by these tests before review: an expression in the commit-time plan check that referenced a column not present on every table, a plan-row guard that rejected the intended "replace" update; and, in the new work, one of my own new tests that proved nothing: the mutation check exposed it and it was rewritten so the protected path is genuinely exercised.
 
 **Limits (honest):** the engine is PostgreSQL 18 (Supabase runs 17); Supabase's own pieces are stand-ins. Tests with several simultaneous connections (parallel bookings, two Owners acting at once) cannot run on a single connection and are planned for GitHub Actions on real Postgres (later in M2). The first real test on Supabase is the apply step itself, which I will run only with `--dry-run` first and after your approval.
 
-## 10. Owner decisions (2026-11-11) and what they change
+## 10. Owner decisions of 2026-11-11 - what changed in the files
 
-| # | Decision | Effect on these migration files |
-|---|---|---|
-| 1 | **Own-email change allowed, only through a verified Supabase Auth process** (current password, confirmation of the new address, old address too with Secure email change). **Role changes stay restricted.** Sole-Owner recovery unchanged. | **Agreed, not yet written.** Needs a trigger on `auth.users` that copies a *confirmed* address into the profile, and a narrow exception in `guard_user_profiles`. Today's files still refuse every self email change, which is the safe default. Design: PRD FR-AUTH-16, TRD §5.7a, DATABASE_SCHEMA note 12. |
-| 2 | **Proofs of approved payments/refunds stay locked.** Missing receipts go through a controlled correction process (mandatory reason, audit, labelled "Added after approval"). | **Agreed, not yet written.** Needs two columns on `proofs` and one exception in `guard_proof` (approved items only). Today's files refuse all additions after a decision, which is the safe default. Design: PRD FR-PAY-12, TRD §5.4a, DATABASE_SCHEMA note 13. |
-| 3 | **Reversal protection kept.** A payment cannot be reversed while dependent refunds exist. | **Already implemented and tested** (`REVERSAL_EXCEEDS_REFUNDS`). PRD FR-APR-3a records it. |
+You approved O7, Q9a and D5. Because nothing has been applied to Supabase, I edited the migration files in place (no extra "patch" files), so there is still one definition of every rule.
 
-Both "not yet written" items will be added with their tests (TEST_PLAN §2.13a) and mutation checks. Until you have reviewed the documents, the migration files are unchanged, so everything described in sections 1–9 still holds exactly.
+| Decision | File and change |
+|---|---|
+| **O7 - verified own-email change** | **06 guards:** `guard_user_profiles` gets the narrow "verified sync" exception and the new refusal `EMAIL_CHANGE_REQUIRES_VERIFICATION` for editing your own email. New function `sync_profile_email()` and trigger `trg_sync_profile_email` on `auth.users` (after an email update): it switches the flag on for that one statement, copies the confirmed address, switches the flag off. |
+| **Q9a - correction files** | **04 proofs table:** new columns `is_correction`, `correction_reason` and the CHECK `proofs_correction_fields` (reason of 10+ characters for a correction, none otherwise). **06 `guard_proof`:** waiting allows ordinary files only; **approved allows correction files only**; rejected/reversed allow nothing; originals and corrections can never be hidden, edited or deleted afterwards; `is_correction` and the reason are immutable. **07:** new view `correction_files` (who, when, why, which payment/refund, which booking). **08:** read access for active users only. |
+| **D5 - reversal protection** | No change. It was already in `guard_payment` (`REVERSAL_EXCEEDS_REFUNDS`). Its tests are unchanged, two more spot checks were added (a waiting refund also blocks the reversal; allowed once that refund is rejected or reversed), and the mutation check now proves the tests would notice if it were removed. |
+
+### What the email-change rule does and does not do
+- **Does:** let any user change their own login email, only after the confirmations Supabase Auth requires; make the profile follow Auth exactly; refuse every other way of writing an email on your own account; keep another-Owner changes under O1; keep every Owner protection unchanged.
+- **Does not:** change roles (self-service role change stays impossible), weaken last-Owner protection, or touch the recovery path.
+- **Not testable here:** the confirmation emails themselves and the "old and new address" step are Supabase Auth features (switch "Secure email change" on in the project; see DEPLOYMENT_GUIDE). The tests simulate the moment Auth reports a confirmed address. Real emails can only be verified on the real project, and the built-in development email delivers only to your Supabase team addresses.
+- **Audit:** the sync is recorded as an update on the profile with old and new address, no session user (it is Supabase Auth acting after the user confirmed), and the user as the target. The app raises the dashboard alert.
+
+### What the correction-file rule does and does not do
+- **Does:** let someone add a missing receipt to an *approved* payment/refund, with a written reason; show it clearly as "added after approval"; list it for the owner to review; leave the original files and every figure exactly as they were.
+- **Does not:** allow editing, hiding or replacing any file after a decision; allow corrections on waiting, rejected or reversed items; change what is counted as collected, pending or refunded.
+- The booking PDF will print corrections with date, person and reason (done when the PDF is built).
+
+### Test changes
+- **Two existing assertions were updated** because your decisions changed the expected outcome, and both still refuse the action: the list of views now includes `correction_files`, and an Owner's direct edit of their own email is now refused as `EMAIL_CHANGE_REQUIRES_VERIFICATION` instead of the older `OWNER_ACTION_REQUIRES_OWNER`.
+- **Every other existing test is unchanged** and passes. **27 new tests** were added in `tests/db/email-change-and-corrections.test.ts`.
 
 ## 11. Other points for awareness
 
 1. **Hiding a file** (while waiting): the caller sends "hide" with a reason; the database stamps the real time and user.
 2. **Reference data is audited** as "system" actions (12 audit rows from migration 10, no user).
-3. **Still to be written in M2:** `next_booking_code`, `create_booking`, plan/cancel/refund/payment functions, user-management functions, `recover_owner_account` (service role only).
-4. **Supabase hosted specifics to confirm at apply time:** creating policies on `storage.objects`, inserting into `storage.buckets`, and (new) creating a trigger on `auth.users`. These are standard on Supabase but can only be proven on the real service.
+3. **Still to be written in M2:** `next_booking_code`, `create_booking`, plan/cancel/refund/payment functions, the correction-file function, user-management functions, `recover_owner_account` (service role only).
+4. **Supabase hosted specifics to confirm at apply time:** creating policies on `storage.objects`, inserting into `storage.buckets`, and creating a trigger on `auth.users`. These are standard on Supabase but can only be proven on the real service.
+5. **If the sync is ever refused, Auth's email change is rolled back** (by design, so Auth and the profile never differ). The app will show a plain message and keep the old email.

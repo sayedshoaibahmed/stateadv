@@ -108,7 +108,7 @@ Users are assumed to be non-technical, often on mobile phones, sometimes on slow
 - FR-AUTH-16 **Verified email change (own account)** *(O7, decided 2026-11-11)*:
   1. Any user opens "My Account → Change email", enters their **current password** and the **new email address**.
   2. Supabase Auth sends a confirmation link to the **new address**. With "Secure email change" turned on (our default) the **old address must also confirm**. Nothing changes until every required link has been used. The login email, the profile email and the audit history stay as they were until then.
-  3. When the change is confirmed, the profile email is updated **only to the exact confirmed address**; the change cannot be made to any other value. It is recorded in the audit history (old and new address, who) and shown as an alert on the dashboard for Owner accounts.
+  3. When the change is confirmed, the profile email is updated **only to the exact confirmed address**; the change cannot be made to any other value. It is recorded in the audit history (old and new address; the user is the target and the actor is shown as the system, because Supabase Auth makes the change after the user confirms) and shown as an alert on the dashboard for Owner accounts.
   4. If a link expires or is not used, the old email keeps working. If the old mailbox is lost, the existing recovery steps apply (FR-AUTH-13), unchanged.
   5. This is the only way to change one's own email. It does not touch the role, and it does not change any other Owner protection.
 - FR-AUTH-14 **The system works securely with exactly one active Owner** *(O5, decided 2026-11-11)*:

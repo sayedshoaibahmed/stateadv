@@ -66,6 +66,7 @@ $$;
 -- 5. Views (they run with the caller's rights, so the policies above still apply).
 grant select on public.booking_financials to authenticated;
 grant select on public.expected_entries   to authenticated;
+grant select on public.correction_files   to authenticated;
 
 -- 6. The only functions the app's users may call directly.
 --    Everything else (guards, audit, internal helpers) is not executable by them.

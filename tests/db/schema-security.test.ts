@@ -125,6 +125,7 @@ describe("Row Level Security and privileges (SEC-01..05)", () => {
     );
     expect(rows.map((r) => r.relname)).toEqual([
       "booking_financials",
+      "correction_files",
       "expected_entries",
     ]);
     for (const r of rows)

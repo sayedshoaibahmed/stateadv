@@ -36,7 +36,7 @@ Needs from the owner: GitHub access (private repo), a Supabase account for a **f
 ## M2 — Database and Authentication
 **M2 is ONE milestone with ONE completion report** (owner decision 2026-11-11). The internal task list below is only a working order, not separate milestones:
 1. Database schema, security rules, views, storage — *written and tested locally; awaiting owner review; NOT applied to Supabase.* See `supabase/MIGRATION_REVIEW.md`.
-2. Agreed schema additions: verified own-email change (O7), correction files (Q9a). Documented, not yet written.
+2. Schema additions agreed 2026-11-11: verified own-email change (O7), correction files (Q9a), reversal protection (D5). *Written and tested at database level; the app screens and the correction-file function come with the later tasks.*
 3. Write functions (RPCs): booking ID, create/update/cancel booking, plan changes, payments, refunds, approvals, account management, recovery.
 4. Apply to the development project (only after the owner approves, dry run first).
 5. Login, password change, My Account (own email change), user management, first-Owner script (the Owner account is created only after separate approval).
