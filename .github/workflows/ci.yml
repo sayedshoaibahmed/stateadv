@@ -52,3 +52,35 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  database-postgres-17:
+    name: Database tests on PostgreSQL 17 (real server, concurrency)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        # Disposable server that exists only for this job. Supabase runs PostgreSQL 17.
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # A throw-away database inside the job's own container. Never a Supabase project.
+      STATEADV_PG_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Show the PostgreSQL version being tested
+        run: node scripts/pg-version.mjs
+      - name: All database tests + concurrency tests on real PostgreSQL 17
+        run: npx vitest run tests/db

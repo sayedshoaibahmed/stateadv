@@ -67,7 +67,10 @@ const SUPABASE_STANDIN = `
 `;
 
 export interface TestDb {
-  pg: PGlite;
+  /** The underlying connection (PGlite or a node-postgres client). */
+  pg: unknown;
+  /** Only for the real-PostgreSQL backend: URL of this test's scratch database (for extra connections). */
+  url?: string;
   /** Run SQL, return rows. Runs as the CURRENT session (see `as`). */
   q<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
   exec(sql: string): Promise<void>;
@@ -98,6 +101,16 @@ export function listMigrationFiles(): string[] {
 }
 
 export async function createDb(): Promise<TestDb> {
+  if (process.env.STATEADV_PG_URL) {
+    // Real PostgreSQL (CI service container or a throw-away local server) instead of PGlite.
+    const { createPgDb } = await import("./pg-backend");
+    return createPgDb(
+      SUPABASE_STANDIN,
+      MIGRATIONS_DIR,
+      listMigrationFiles(),
+      applySession as never,
+    );
+  }
   const pg = new PGlite({ extensions: { pg_trgm } });
   await pg.exec(SUPABASE_STANDIN);
   for (const file of listMigrationFiles()) {
