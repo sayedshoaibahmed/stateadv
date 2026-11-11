@@ -462,6 +462,7 @@ Room/cottage allocation, percentage discounts, agent commission, SMS/WhatsApp co
 | 2026-11-11 | **D4** Nights calculated automatically from dates; minimum 1 for per-night pricing. | Owner |
 | 2026-11-11 | **Owner protection** At least one active Owner always. Extra protection for disabling Owner accounts. Account recovery must be possible. Detailed rules O1–O4 proposed (§12.2). | Owner |
 | 2026-11-11 | **O5, O6** Create only the owner's own first Owner account. The second Owner stays pending until details are provided: no fake email, no dummy Owner. The system must run securely with one active Owner and keep the "at least one active Owner" rule. Recovery limitations with one Owner are documented. The second Owner is added later by the existing Owner through the approved Owner management process. | Owner |
+| 2026-11-11 | **O6 approved.** Adding another Owner requires the current Owner's password and a written reason. **M2 setup choices:** fictional test data only (never in real data; tests roll back); database tests run through GitHub Actions in a disposable database; the built-in Supabase email is used in development; database changes use Option B (database connection string), subject to CLI compatibility and security verification. | Owner |
 
 ## 12. Open items
 
@@ -470,7 +471,7 @@ Room/cottage allocation, percentage discounts, agent commission, SMS/WhatsApp co
 |---|---|---|
 | Q11 | Hosting budget and provider subscriptions. Estimates and production requirements are in DEPLOYMENT_GUIDE §9. | M10 (development can use free tiers) |
 | O-2nd | **Second Owner account.** Waiting for the person's name and real email address. Until then the system runs with one Owner (O5). It is added later in the app (O6). | Recommended before go-live (M10). The owner may instead sign off on the one-Owner limitations (SECURITY.md §3.2a). |
-| O-1st | **First Owner account details** (full name and real email address of the business owner). | Start of M2 |
+| O-1st | ~~First Owner account details~~ — name and email provided in chat 2026-11-11 (deliberately not stored in the repository). A temporary password is set when the account is created; the Owner must change it at first login. | Done |
 
 ### 12.2 Owner-account protection rules (O1–O4 accepted with M0 approval; O5–O6 decided 2026-11-11)
 You asked for extra protection for Owner accounts. To make that protection actually work, the role has to matter for account actions on Owner accounts. Operational access stays equal for everyone.

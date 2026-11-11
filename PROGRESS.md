@@ -75,6 +75,12 @@ Last updated: 2026-11-11
 - The second Owner is added later in the app by the existing Owner (Settings → Users → Add User → role Owner), with no development work.
 - M2 has NOT started.
 
+## 2026-11-11: f15f5e9 pushed; M2 setup choices
+- Commit f15f5e9 (docs only, 9 files) reviewed and pushed to the private repo. Remote = local. No credentials in it.
+- Owner decisions recorded: O6 approved (current Owner's password + written reason to add an Owner); first Owner details provided in chat (not stored in the repo); second Owner pending; fictional test data only; database tests via GitHub Actions; built-in Supabase email in development; database access via Option B.
+- Supabase CLI 3.1.0 supports `--remote=<connection url>` and `--dry-run` for `db push`, so Option B is compatible.
+- Still needed before M2 (see the M2 prerequisites list in the report): the session-pooler connection string in `.env.local`; confirmation that the Supabase account email matches the Owner email; the first Owner's temporary password entered privately at account creation.
+
 ## Needed before M2
 - Make the GitHub repo private → then I push.
 - Disable public sign-ups in Supabase.
