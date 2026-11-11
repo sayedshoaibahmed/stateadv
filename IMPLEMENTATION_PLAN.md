@@ -35,7 +35,7 @@ Needs from the owner: GitHub access (private repo), a Supabase account for a **f
 
 ## M2 — Database and Authentication
 1. Migrations: extensions → enums → tables (incl. refunds, proofs, approval_history, booking_sequences per resort/year, payment_plan_revisions, expected_adjustments) → constraints (pricing, C/O, cancellation, adjustment) → indexes → triggers (audit, updated_at, prevent_delete, immutability, approval_guard, schedule_guard past-due lock, resort copy, plan-invariant and proof deferred checks, user_profiles_guard: self-disable / last Owner / O1–O2) → views (`booking_financials`, `expected_entries`) and functions (`booking_overdue`, `plan_preview`) → RPCs (incl. plan revision rules, `recover_owner_account`) → grants/revokes → RLS → storage buckets and policies.
-2. Seed: stay types (Resort Stay, Day Outing, Package), payment providers. Dev-only test users (2 Owners, 2 Managers). `scripts/create-first-user.ts` and `scripts/recover-owner.ts`.
+2. Seed: stay types (Resort Stay, Day Outing, Package), payment providers. **No test or placeholder Owner accounts are stored in the database** (O5): database tests create their users inside transactions that roll back. `scripts/create-first-user.ts` (creates only the owner's real first Owner account, refuses to run if any profile exists) and `scripts/recover-owner.ts` (with `--reset-mfa`).
 3. Auth: email/password login, proxy (`src/proxy.ts`), protected layout, logout, forced password change, user management (add/edit/disable/enable/reset) with self-disable block, Owner protection (Owner-only actions on Owners, password re-entry, reason, alert), Forgot-password link for Owner accounts, and audit.
 4. Generated TS types.
 5. pgTAP: RLS everywhere, anon denied, inactive user denied, deletes blocked, ID concurrency per resort/year, pricing/C/O/cancellation constraints, plan invariant + past-due lock + adjustments (PLN-05…11, COL-11*), proof rule, transitions, refund limit + race, all of FIN-01…19, audit actor, self-approval flags, USR-* and OWN-* rules.
@@ -114,4 +114,7 @@ Needs the **budget/provider confirmation (Q11)** and explicit production approva
 | Q1–Q10, Q12–Q17 (incl. Q6b, Q7a–d) | ✅ Decided (PRD §11) | — |
 | D1–D4 derived rules | ✅ Decided | — |
 | O1–O4 Owner-account protection | ✅ Accepted with M0 approval | — |
+| O5–O6 one Owner now, second Owner added later in the app | ✅ Decided | — |
+| First Owner: full name + real email | ❓ Needed from the owner | Start of M2 |
+| Second Owner: name + real email | ⏸ Pending (not needed to build or test M2) | Recommended before M10 |
 | Q11 hosting budget/providers | ⏸ Deferred | M10 (development on free tiers) |

@@ -179,7 +179,8 @@ Audit timeline with filters (user, action, record type, resort, date), including
   - The "Owner" role option appears only for Owners.
   - When an Owner performs one of these actions on another Owner: a dialog asks for a reason and "Enter your password to confirm".
   - The last active Owner shows "This is the only active Owner. Add another Owner first."
-- A banner is shown to Owners while there is only one active Owner: "Tip: add a second Owner account so the business can always recover access."
+- While there is only one active Owner, a notice is shown to Owners on the dashboard and at the top of this page: "Only one Owner account exists. If you lose your password and email access, access can be recovered only with technical help. Add a second Owner when you can." with a button **Add second Owner** that opens Add User with the role set to Owner.
+- Add User with role **Owner** is available only to Owners. It asks for a reason and the Owner's own password, and is shown as a dashboard alert to all users (O6).
 
 ### 3.17 Settings → Stay Types / Payment Apps / System status
 Add, rename and deactivate items in the lists. The system page shows the PDF queue, last backup and data checks.

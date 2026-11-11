@@ -4,7 +4,7 @@
 |---|---|
 | Document | Product Requirements Document |
 | Milestone | M0 – Requirement Analysis and Architecture |
-| Status | **M0 final draft. All business questions decided except Q11 (deferred). D1–D4 decided. Owner-account protection rules O1–O4 accepted with M0 approval (2026-11-11). **M0 approved.**** |
+| Status | **M0 approved (2026-11-11). Q11 hosting budget deferred. Second Owner account pending: details not yet provided (§12.1).** |
 | Last updated | 2026-11-11 |
 
 ---
@@ -94,15 +94,20 @@ Users are assumed to be non-technical, often on mobile phones, sometimes on slow
 - FR-AUTH-7 Every account action (user added, details changed, disabled, enabled, password reset) is recorded in the audit history with who did it, to whom, and when. Passwords are never logged.
 - FR-AUTH-8 Every business action records the logged-in user.
 
-**Owner-account protection** (owner request; rules O1–O4 to confirm, §12.2)
+**Owner-account protection** (decided; rules O1–O4 in §12.2, one-Owner clarification O5–O6)
 - FR-AUTH-9 **At least one active Owner account must always exist.** The system blocks any action that would leave zero active Owners: disabling the last active Owner, or changing the last active Owner's role to Manager.
 - FR-AUTH-10 **Protected actions on an Owner account** can be done only by **another active Owner**: disabling it, resetting its password, changing its email, or changing its role. Managers can still view Owner accounts. *(O1)*
 - FR-AUTH-11 **Only an Owner can give the Owner role** to a user (create an Owner, or promote a Manager to Owner). A Manager cannot make themselves or anyone else an Owner. *(O2)*
 - FR-AUTH-12 A protected action needs (a) a written **reason** and (b) the acting Owner to **re-enter their own password**. It is recorded in the audit history, and the dashboard shows an alert to all users ("Owner account Ravi Kumar was disabled by Sunita Rao – reason …"). *(O3)*
-- FR-AUTH-13 **Account recovery:**
-  1. An Owner who forgot their password can use the "Forgot password" email link (Owner accounts only), or ask another Owner to reset it.
-  2. If no Owner can log in, the recovery procedure (DEPLOYMENT_GUIDE §7.4) uses a one-time server script, run by the business owner from their own computer with the Supabase project credentials, to re-enable or reset an Owner account. The script writes an audit entry "owner_recovered" with its reason.
-  3. Recommended: keep **two Owner accounts** (for example the owner plus one trusted person), and turn on two-step login (MFA) for Owner accounts. *(O4)*
+- FR-AUTH-13 **Account recovery**, in this order:
+  1. The Owner who forgot their password uses the "Forgot password" email link (Owner accounts only). If a second Owner exists, that Owner can also reset the account.
+  2. If no Owner can log in, the recovery procedure (DEPLOYMENT_GUIDE §7.4) uses a one-time server script, run by the business owner on their own computer with the Supabase project credentials, to re-enable the Owner account, set a temporary password and, if needed, remove a lost two-step login (MFA) device. The script writes an audit entry "owner_recovered" with its reason.
+  3. Recommended: keep **two Owner accounts** and turn on two-step login (MFA) for Owner accounts. *(O4)* The second Owner is **optional and pending** (FR-AUTH-14).
+- FR-AUTH-14 **The system works securely with exactly one active Owner** *(O5, decided 2026-11-11)*:
+  1. At the start there is **one real Owner account**: the business owner's. **No second, placeholder, dummy or test Owner is created in the real data, and no fake email address is ever used.**
+  2. All rules above still apply: at least one active Owner always exists; the sole Owner cannot disable or demote themselves, and no one else can disable, demote, reset or re-email the sole Owner's account (managers are blocked by O1/O2).
+  3. While there is only one active Owner, the Users page and the dashboard show a visible notice to Owners ("Only one Owner account exists. Add a second Owner so access can be recovered"), and the recovery limitations in SECURITY.md §3.2a apply.
+- FR-AUTH-15 **Adding the second Owner later** *(O6, decided 2026-11-11)*: only the existing Owner can do it, in the app, through Settings → Users → Add User with the role **Owner** (FR-AUTH-11). It creates a real account with a temporary password that the new Owner must change at first login. It needs a written reason and the acting Owner's password re-entered, and is audited and shown as a dashboard alert. Sending an email invitation link is not part of version 1 (it needs the production email sender, Q11). The second Owner can be added at any time, with no development work.
 
 ### 5.2 Resort management
 - FR-RES-1 Add, edit and view a resort.
@@ -456,6 +461,7 @@ Room/cottage allocation, percentage discounts, agent commission, SMS/WhatsApp co
 | 2026-11-11 | **D3** Refund proof rule = payment rule (mandatory UPI/Card/Cheque, optional Cash/Other). | Owner |
 | 2026-11-11 | **D4** Nights calculated automatically from dates; minimum 1 for per-night pricing. | Owner |
 | 2026-11-11 | **Owner protection** At least one active Owner always. Extra protection for disabling Owner accounts. Account recovery must be possible. Detailed rules O1–O4 proposed (§12.2). | Owner |
+| 2026-11-11 | **O5, O6** Create only the owner's own first Owner account. The second Owner stays pending until details are provided: no fake email, no dummy Owner. The system must run securely with one active Owner and keep the "at least one active Owner" rule. Recovery limitations with one Owner are documented. The second Owner is added later by the existing Owner through the approved Owner management process. | Owner |
 
 ## 12. Open items
 
@@ -463,8 +469,10 @@ Room/cottage allocation, percentage discounts, agent commission, SMS/WhatsApp co
 | # | Item | Needed before |
 |---|---|---|
 | Q11 | Hosting budget and provider subscriptions. Estimates and production requirements are in DEPLOYMENT_GUIDE §9. | M10 (development can use free tiers) |
+| O-2nd | **Second Owner account.** Waiting for the person's name and real email address. Until then the system runs with one Owner (O5). It is added later in the app (O6). | Recommended before go-live (M10). The owner may instead sign off on the one-Owner limitations (SECURITY.md §3.2a). |
+| O-1st | **First Owner account details** (full name and real email address of the business owner). | Start of M2 |
 
-### 12.2 Owner-account protection rules: please confirm (or reply "accept")
+### 12.2 Owner-account protection rules (O1–O4 accepted with M0 approval; O5–O6 decided 2026-11-11)
 You asked for extra protection for Owner accounts. To make that protection actually work, the role has to matter for account actions on Owner accounts. Operational access stays equal for everyone.
 
 | # | Rule | Why it is needed | Alternative |
@@ -472,6 +480,8 @@ You asked for extra protection for Owner accounts. To make that protection actua
 | O1 | Disabling an Owner, resetting an Owner's password, changing an Owner's email or role: **only another active Owner** can do it. | If a Manager could reset an Owner's password, they could log in as the Owner, so "disable protection" alone would not protect the account. | Managers may also do it, but only with a reason + password re-entry + alert (weaker). |
 | O2 | **Only an Owner can give the Owner role.** | Otherwise a Manager could promote themselves to Owner and then use O1. | — (needed for O1 to mean anything) |
 | O3 | Protected Owner actions need a reason + the acting Owner's password re-entered, and every user sees a dashboard alert. | Prevents a mistake or misuse on an unattended logged-in device. | Reason only. |
-| O4 | Recommended setup: **two Owner accounts**, MFA for Owners, and "Forgot password" email enabled for Owner accounts only. A server-side recovery script is the last resort. | With one Owner, a forgotten password could otherwise lock the business out of owner-level account control. | One Owner and the recovery script only. |
+| O4 | Recommended setup: **two Owner accounts**, MFA for Owners, and "Forgot password" email enabled for Owner accounts only. A server-side recovery script is the last resort. | With one Owner, a forgotten password could otherwise lock the business out of owner-level account control. | One Owner and the recovery script only. **Owner decision 2026-11-11: start with one Owner (O5); the second is pending.** |
+| O5 | Start with **one real Owner**. Never create a dummy or fake-email Owner. All Owner protections still hold with one Owner. | Owner has no second person's details yet. | Block go-live until two Owners exist (rejected by owner). |
+| O6 | The second Owner is added later by the existing Owner in the app (Add User, role Owner, reason, password re-entry, audit, alert). | Uses the already approved Owner management process, no special-case code. | Email invitation link (needs the production email sender; not version 1). |
 
 With these rules, a Manager can still add, edit, disable, enable and reset **Manager** accounts, exactly as decided in Q10.

@@ -67,6 +67,14 @@ Last updated: 2026-11-11
 5. Playwright browsers are not installed yet (needed from M3).
 6. The Supabase CLI is not linked to the cloud project (needs a personal access token). Migrations in M2 need `supabase link` or the database connection string.
 
+## Owner decision: one Owner at first (2026-11-11)
+- Only the owner's own first Owner account will be created in M2. **No second, dummy or fake-email Owner**, in the real data or as a stored test account.
+- The system must (and will) run securely with one active Owner and keep the rule "at least one active Owner always".
+- Documented: PRD FR-AUTH-13/14/15 and O5–O6; SECURITY.md §3.2a (recovery limitations with one Owner); DEPLOYMENT_GUIDE §7.4–7.5 and go-live checklist; DATABASE_SCHEMA user_profiles rules; TRD §5.7; UI notice and Add Owner flow; tests OWN-11…19; IMPLEMENTATION_PLAN M2 seed and pending items.
+- **Pending from the owner:** (1) first Owner full name + real email (needed at the start of M2); (2) second Owner details (not needed to build M2; recommended before M10, or the owner signs off on the one-Owner limitations).
+- The second Owner is added later in the app by the existing Owner (Settings → Users → Add User → role Owner), with no development work.
+- M2 has NOT started.
+
 ## Needed before M2
 - Make the GitHub repo private → then I push.
 - Disable public sign-ups in Supabase.

@@ -55,7 +55,9 @@ Rules enforced by the trigger `user_profiles_guard` (BEFORE UPDATE) plus the pro
 4. **Owner role grants (O2):** setting `role='owner'` (on insert or update) requires the actor to be an active Owner.
 5. The service-role recovery path (`recover_owner_account`) bypasses rules 3–4 only. It never bypasses rule 2, and it always writes an audit entry.
 
-The first Owner is created by `scripts/create-first-user.ts` (service role). After that, every Owner is created by an existing Owner.
+The first Owner is created by `scripts/create-first-user.ts` (secret key). The script **refuses to run if any `user_profiles` row exists**, so it can only ever create the very first account (O5). After that, every Owner is created by an existing Owner (O2, O6).
+
+**One-Owner operation (O5):** rule 2 is evaluated on UPDATE only. The initial insert is the one moment with zero Owners and is allowed only when the table is empty. With one active Owner, disabling or demoting that Owner is always refused (`LAST_OWNER_PROTECTED`), and rules 3–4 mean no other user can act on it. No placeholder or test Owner is ever stored in the database; tests create their users inside transactions that are rolled back.
 
 ### 2.2 `resorts`
 | Column | Type | Rules |

@@ -108,16 +108,23 @@ The booking ID needs no env var: the prefix is each resort's code, stored in the
 
 ### 7.4 Owner account recovery
 Use this in order, and stop at the first step that works:
-1. **Another Owner** resets the password or re-enables the account (Settings → Users; needs a reason and their own password).
+1. **Another Owner** resets the password or re-enables the account (Settings → Users; needs a reason and their own password). *Only possible once a second Owner exists. With one Owner, go straight to step 2.*
 2. **Forgot password email** (Owner accounts only) from the login page. This requires the production email sender (custom SMTP) to be configured.
 3. **Recovery script** (last resort), run by the business owner (or the developer in the owner's presence) on a trusted computer:
    1. Log in to the Supabase dashboard (owner's account, MFA) → copy the Supabase secret key into a temporary local `.env.recovery` (never commit it).
    2. `npx tsx scripts/recover-owner.ts --email owner@example.com --reason "Lost phone and password"`.
-   3. The script re-enables the Owner profile, removes the Auth ban, sets a temporary password (printed once), and records audit action `owner_recovered`.
+   3. The script re-enables the Owner profile, removes the Auth ban, sets a temporary password (printed once), removes a lost MFA device if `--reset-mfa` is given, and records audit action `owner_recovered`. It never creates a new Owner and never lets the active-Owner count drop below one.
    4. Delete `.env.recovery`. Log in and change the password. Consider rotating the Supabase secret key afterwards (Vercel env update + redeploy).
 4. Afterwards, review Activity for account actions around the incident.
 
-Prevention: keep two Owner accounts with MFA, and keep the Supabase/Vercel dashboard logins with the business owner (MFA on).
+Prevention: add a second Owner as soon as possible, keep MFA on every Owner account with recovery codes stored offline, and keep the Supabase/Vercel dashboard logins with the business owner (MFA on).
+
+### 7.5 While there is only one Owner (O5)
+The system runs securely with a single Owner, with a narrower recovery path. Full table: SECURITY.md §3.2a.
+- Managers **cannot** reset or re-enable the Owner (by design, O1).
+- If the Owner forgets the password, the "Forgot password" email is the only self-service route. It needs a mailbox the Owner controls and a working email sender. In development the built-in Supabase sender is rate-limited and may only deliver to Supabase team members' addresses.
+- If the mailbox or MFA device is also lost, only the recovery script (step 3 above) works. It needs the Supabase dashboard login.
+- To add the second Owner later: Settings → Users → Add User → role Owner (reason + password re-entry). No development work or deployment is needed.
 
 ## 8. Restore drill log
 | Date | Backup used | Result | Duration | Notes | By |
@@ -154,6 +161,8 @@ Estimate for the planned stack (prices change; recheck at signup):
 - [ ] Service-role key only in the production server env.
 - [ ] First backup + file copy succeeded.
 - [ ] User accounts created, passwords changed at first login.
-- [ ] At least two Owner accounts with MFA (recommended). Owner reset email tested. Recovery script tested on staging.
+- [ ] Owner account has MFA on, with recovery codes stored offline.
+- [ ] Second Owner added (recommended), **or** the owner has signed off on the one-Owner limitations (SECURITY.md §3.2a) and the decision is recorded in PROGRESS.md.
+- [ ] Owner reset email tested. Recovery script tested on staging.
 - [ ] Real resorts entered with codes and logos.
 - [ ] Owner explicitly approved the production deployment.

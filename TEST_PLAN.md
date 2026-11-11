@@ -18,7 +18,9 @@
 
 **Golden fixture:** `supabase/tests/fixtures/golden.sql` with 3 resorts, about 40 bookings (both pricing methods, extras, discounts, adjustments, cancellations, no-shows) and about 100 payments/refunds in every status. `golden_expected.csv` holds the hand-calculated figures. The dashboard, reports and PDF summaries are asserted against it.
 
-Tests never run against production.
+Tests never run against production, and **no test data is ever left in the real development or production project** (O5):
+- Ordinary database tests (pgTAP) create their users and rows inside a transaction that is rolled back.
+- Concurrency tests (BID-02/03, OWN-06, REF-04, APR-05) must commit data from several connections. They run **only in a disposable database** (the local Supabase stack that CI starts, created fresh for each run and thrown away), never in the cloud dev, staging or production project.
 
 ## 2. Test cases
 
@@ -214,6 +216,15 @@ Tests never run against production.
 | OWN-08 | recovery script with the service role | Owner re-enabled / temporary password; audit `owner_recovered` with reason |
 | OWN-09 | `recover_owner_account` called by an authenticated user | denied |
 | OWN-10 | Auth admin call fails after the RPC succeeded | compensated; profile and Auth state consistent |
+| OWN-11 | system with exactly one active Owner: the Owner disables or demotes self | blocked |
+| OWN-12 | one Owner: a Manager tries to disable, reset, re-email or demote the Owner, or to promote self to Owner | blocked at the Server Action, RPC and direct SQL |
+| OWN-13 | one Owner: Owner adds a user with role Owner, with reason and correct password | allowed; audit + alert; two active Owners |
+| OWN-14 | Add Owner without a reason or with a wrong password | blocked |
+| OWN-15 | `create-first-user` when a profile already exists | refuses and creates nothing |
+| OWN-16 | `create-first-user` on an empty system | creates exactly one Owner profile + Auth user, `must_change_password` set |
+| OWN-17 | one active Owner: notice shown on the dashboard and Users page; hidden once a second Owner exists | ✓ |
+| OWN-18 | recovery script with `--reset-mfa` on the sole Owner | MFA factor removed, account usable, audit `owner_recovered`, still exactly one Owner |
+| OWN-19 | the database after all tests contains no test or placeholder Owner | ✓ (tests roll back) |
 | USR-04 | user disables self (UI, Server Action, direct RPC) | blocked at every layer (`CANNOT_DISABLE_SELF`) |
 | USR-05 | reset password | temporary password set, must change, audit (no password in log) |
 | USR-06 | re-enable user | allowed, audit |

@@ -47,9 +47,31 @@ The Owner/Manager role matters in exactly one place: **Owner-account protection*
 | **At least one active Owner always** | Profile RPC under a table lock + `user_profiles_guard` trigger → `LAST_OWNER_PROTECTED` |
 | **Protected Owner actions** (O1): disable, password reset, email change, role change of an Owner account | Only an active Owner actor ≠ target (RPC + trigger). Server Action re-verifies the actor's password. Reason required. Dashboard alert to all users. |
 | **Owner role grants** (O2) | Only an active Owner can create an Owner or promote someone to Owner |
-| **Recovery** (O4) | 1) another Owner resets; 2) "Forgot password" email for Owner accounts; 3) last resort: `scripts/recover-owner.ts` run locally with the Supabase secret key → `recover_owner_account` (service role only) + Auth admin unban/reset, audited `owner_recovered` |
+| **Recovery** (O4) | 1) another Owner resets (only when a second Owner exists); 2) "Forgot password" email for Owner accounts; 3) last resort: `scripts/recover-owner.ts` run locally with the Supabase secret key → `recover_owner_account` (service role only) + Auth admin unban/reset/MFA-factor removal, audited `owner_recovered` |
+| **Single-Owner start** (O5) | The first Owner is created by `scripts/create-first-user.ts`. It refuses to run if any profile already exists, so it can never add a second Owner. No dummy or fake-email Owner is ever created. |
+| **Adding the second Owner** (O6) | Only an active Owner, in Settings → Users → Add User (role Owner), with a reason and password re-entry (same controls as O3). Audited, with a dashboard alert. |
 
 Recommended setup: **two Owner accounts**, both with MFA. The Supabase and Vercel dashboard logins (which hold the Supabase secret key needed for recovery) must belong to the business owner, with MFA, and must never be shared.
+
+### 3.2a Operating with exactly one Owner (O5): limitations
+The system is secure with one active Owner: every rule in §3.2 still holds. The sole Owner cannot be disabled, demoted, password-reset or re-emailed by anyone else, and cannot disable themselves, so the account cannot be removed by mistake or by a Manager. The price is a narrower recovery path:
+
+| Situation with one Owner | What happens | What helps |
+|---|---|---|
+| Owner forgets the password | No other Owner can reset it. Managers **cannot** (O1). Self-service only: the "Forgot password" email link. | A mailbox only the Owner controls, with its own MFA. Working email sending (development: Supabase built-in sender, which is rate-limited and may only deliver to addresses of your Supabase team members; production: custom sender, Q11). |
+| Owner also loses access to that mailbox | App recovery is impossible. Only the recovery script remains. | Keep mailbox recovery options current. |
+| Owner loses the MFA device | Same as above. The script removes the lost MFA factor. | Store MFA recovery codes offline (paper or a password manager). |
+| Recovery script needed | Requires the Supabase dashboard login (to get the secret key) and a trusted computer. Anyone holding the secret key could reset the Owner, so these logins are the real root of trust. | Supabase and Vercel logins in the business owner's name with MFA, ideally with a second trusted person as an administrator of the Supabase organisation. |
+| Dashboard login is also lost | The app cannot help. Recovery goes through Supabase account recovery. | Same as above. |
+| The Owner leaves the business or hands over | The sole Owner cannot be removed by anyone. | First add the new Owner (O6). The new Owner can then disable the old one under O1/O3 (reason, password, alert). |
+| Sensitive Owner-account actions | There is no second person to review them. The sole Owner can still add Owners and change other accounts, and every action is audited. | A second Owner, and the dashboard notice (FR-AUTH-14). |
+| Disabled sole Owner | Impossible through the app (`LAST_OWNER_PROTECTED`). Only the secret key, directly in the database, could do it, and that is treated as an incident. | Keep the secret key private; rotate it after any suspicion. |
+
+Operating rules while there is one Owner:
+1. Enable MFA on the Owner account before real data is entered.
+2. Keep the recovery steps in DEPLOYMENT_GUIDE §7.4 and test the recovery script on staging before go-live.
+3. A visible notice is shown to the Owner on the dashboard and the Users page until a second Owner exists.
+4. The owner decides before go-live (M10) whether to add a second Owner or to sign off on these limitations, and the decision is recorded in PROGRESS.md.
 
 **Remaining business risk (R16):** a Manager can still disable or reset other Managers (decided Q10). Mitigations: the audit trail, alerts, self-disable block, and any user can re-enable a Manager.
 
@@ -143,7 +165,8 @@ Atomic multi-table financial operations (booking + ID + plan; approval + history
 | Free hosting tiers: no backups, pausing, non-commercial terms | Data loss, downtime, terms violation | Paid plans are a **production requirement**. Budget confirmation deferred to before M10 (Q11). |
 | Storage not in DB backups | Lost screenshots | Separate file copy job |
 | Service-role key leak | Full DB access | Server-only module, secret scan, bundle check, rotation procedure |
-| Owner account takeover / lockout (R16) | Loss of owner control | Last-Owner rule, Owner-only protected actions, password re-entry, alerts, MFA, two Owners, recovery script |
+| Owner account takeover / lockout (R16) | Loss of owner control | Last-Owner rule, Owner-only protected actions, password re-entry, alerts, MFA, recovery script. A second Owner is recommended but **pending** (O5); until then see §3.2a for the limitations. |
+| Single Owner locked out (O5) | No app-level way to regain Owner access | MFA recovery codes, a controlled mailbox, dashboard-login administrators, tested recovery script (§3.2a) |
 | Managers manage other Managers | A Manager locks out colleagues | Self-disable blocked, audit + alert, any user can re-enable |
 | Recovery script misuse | Unauthorised Owner reset | Needs the Supabase secret key, which only the business owner controls (MFA on the dashboards). Every run is audited. |
 | Shared logins | No accountability | Individual accounts. Disable leavers immediately. |
