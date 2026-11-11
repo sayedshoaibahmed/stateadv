@@ -42,6 +42,33 @@ The public API cannot show these. Please look and tell me:
 | 7 | **Stop.** Report. Do not create the Owner, do not start M3. | |
 Nothing in this sequence creates an account, changes a credential or deploys.
 
+### 0d. The migration approval request (one batch; nothing below has been done)
+
+| Item | Detail |
+|---|---|
+| Files | 20261111000011 ... 20261111000018 (eight files, contiguous after 10; 01-10 unchanged and byte-identical to what is applied) |
+| Destructive operations (all in 17, all marked DESTRUCTIVE-APPROVED) | drop constraint `bookings_co_rules`; drop columns `bookings.co_category` and `co_entries.type` (the renamed `agents_partners`); drop index `co_entries_type_name_key`; drop types `co_category` and `partner_type`. Hosted data they hold: **0 rows** in every affected table (preflight P2, P4) |
+| Preconditions | preflight P1-P7 PASS now; P8 passes once the working tree equals GitHub main (it does not while new local test files are uncommitted) |
+| Recovery | there are no down-migrations. Hosted holds only reference data (3 stay types, 9 payment apps, 12 system audit rows), so the recovery for any failure is: stop, inspect read-only, then with your approval correct it or reset the schema and re-apply 01-18. Staged apply (A: 11-16, verify, B: 17-18) limits what a failure can touch. **Backup status is unknown until you check the dashboard (0b item 4).** Nothing of value would be lost, so I would not wait for a backup, but tell me if you want one |
+| Expected result | history 18; 20 tables, 3 views, 8 enums, 85 functions, 38 callable by signed-in users, 0 by anon; 102 public triggers; 19 public + 6 storage policies; 4 `co_categories`; 4 placeholder resorts; 16 audit rows |
+| Verification afterwards | `npm run preflight:hosted` no longer applies; run the read-only queries of section 8 and compare with the expected result above; anonymous REST probes; advisors |
+| Stop rule | any failing statement: stop at once, change nothing else, report the exact error |
+
+### 0e. Rotating the compromised Secret Key (separate approval)
+
+1. Where the key is used (checked 2026-11-11): `src/lib/supabase/admin.ts` (server only, `import 'server-only'`), `src/lib/env.server.ts` (reads it), `scripts/create-first-user.ts` and `scripts/recover-owner.ts` (one-time scripts reading `.env.local`), `scripts/check-client-bundle.mjs` (only searches the browser files for it). Vercel: not deployed yet, so no Vercel copy exists. GitHub Actions: not used (the CI build uses placeholders).
+2. Procedure (you do it, I never see the key): Supabase dashboard -> Project Settings -> API Keys -> create a **new** secret key -> paste it into `.env.local` as `SUPABASE_SECRET_KEY` (replace the old value) -> delete the **old** secret key in the dashboard. Down time: none, nothing runs yet.
+3. Verify without printing: `npm run check:supabase`, then `npx tsx scripts/create-first-user.ts --dry-run` (a dry run creates nothing), and a bundle scan.
+4. The old key must stop working: I will make one request with the old value from your `.env.local` backup only if you keep it; otherwise deleting it in the dashboard is the proof.
+
+### 0f. Creating the first Owner (separate approval; after 0d and 0e)
+
+The mechanism is `scripts/create-first-user.ts` with `scripts/lib/first-owner.ts`: server-side only (needs the Secret Key from `.env.local`), refuses to run when any profile exists, refuses an existing login, creates the Auth user and then the profile through the database (a failed profile removes the new login), asks for the password through a hidden prompt and never prints or stores it (tests: FOW-*, FIRSTOWNER unit tests). Steps after your approval and your Owner's name and email: dry run, real run (you type the password), sign in, forced password change, then sections 1-3 below.
+
+### 0g. Browser checks of the settings screens (need 0d and an account)
+
+The unauthenticated side is verified (RSV-16). The logged-in side needs migrations 11-18 and the Owner. Steps, each in a normal and a narrow (360 px) window: (1) Settings -> Resorts: list shows four placeholder resorts; edit one (name only), switch one off and on, try a code that already exists (plain error), try an empty name (message, nothing saved). (2) Settings -> C/O: four starting categories; add a category in each mode (listed / typed / none); add, rename, switch off a name; type in the picker to search; an empty name is refused. (3) Settings -> Stay types: add, rename, switch off. (4) Sign in as a Manager (created in People): Manager can use the same pages; People page is not offered. (5) Switch the Manager off in People: the next page load sends them to the login page. (6) Slow network (browser throttling): loading placeholders appear, no blank page. Use clearly fictional names and delete nothing; switch off instead.
+
 ## 1. First Owner (needs approval + replaced Secret Key) — status: not run
 1. `npx tsx scripts/create-first-user.ts --dry-run` → "Dry run: nothing was created."
 2. After approval: real run in your own terminal. **Pass:** one `user_profiles` row (role owner, active, must change password), one Auth user, one audit row with no actor.
@@ -111,7 +138,7 @@ Direct database checks (read-only): `co_categories` has Agent, Partner, Own, Dir
 | T7 | Attach a file that belongs to another booking | refused |
 | T8 | **Important:** the database compares a file's size and type with what Storage recorded in `storage.objects.metadata` (`size`, `mimetype`). If every upload is refused at the payment step with "uploaded file does not match", the field names differ — tell me and I will adjust migration 15 before it goes further. |
 
-## 7. IST midnight (RSV-11) — status: not run
+## 7. IST midnight (RSV-11) — status: local tests done (IST-01..09, IST-U: 34 tests, 5 session zones and 5 machine zones); hosted read of `today_ist()` after apply still to do
 The date rules use `Asia/Kolkata` explicitly. A real test needs the hosted clock to cross 00:00 IST: just after midnight check that `today_ist()` shows the new date, a plan row due "yesterday" is locked, and a payment dated "today" is accepted while one dated tomorrow is refused.
 
 ## 8. Privileges and advisors after apply (RSV-05, 09, 10)

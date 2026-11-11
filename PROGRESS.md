@@ -20,6 +20,14 @@ Last updated: 2026-11-11
 
 **Known issue (open):** on this Windows machine the many-connection test file sometimes loses its Node worker process (about 1 run in 10; no failing assertion ever; see MIGRATION_REVIEW 14.6).
 
+### Stage 2026-11-11 (later): checks completed without needing approval
+- **GitHub:** `5050a8e` pushed; all four CI jobs passed (reported by the owner), including the new restricted-role job.
+- **IST midnight (RSV-11):** `tests/db/ist-midnight.test.ts` (IST-01..09) and `tests/unit/ist-midnight.test.ts` (IST-U, five machine zones): 34 tests pass. Not yet committed.
+- **Second approver / access (RSV-15):** `tests/db/approval-access.test.ts` (PAF-50..55): 6 tests pass. Self-approval is allowed and flagged by approved decision Q8; waiting approvals do not expire in the product.
+- **Unauthenticated check of a production build against the hosted project (RSV-16):** every settings and People page redirects to login; sign-up is refused (422).
+- **Hosted preflight re-run:** P1-P7 PASS; P8 fails only because the new test files are uncommitted.
+- **Needs you:** dashboard checks (HOSTED_VERIFICATION 0b), the migration approval (0d), key rotation (0e), Owner details (0f), two mailboxes for RSV-08.
+
 ### Mutation testing schedule (owner decision 2026-11-11)
 M2: essential targeted security and financial-rule checks only. M3, M4, M6, M7, M8: ordinary tests only. M5: targeted financial mutation checks. **M9: full mutation testing across M2-M8.** `scripts/mutation-check.mjs` and its 53 mutations are kept unchanged for M9 (`MUTATION_ONLY="name part,name part"` selects a subset). Do not run the full suite earlier unless a critical issue requires it.
 

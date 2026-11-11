@@ -13,12 +13,12 @@ M2 is **one milestone**. This is a working audit, generated from the data in the
 
 | Measure | Result |
 |---|---|
-| M2 requirements in scope | **66** (plus 3 that belong to later milestones) |
-| Fully complete (verified at every level possible without your approval) | **4** |
-| Built and tested locally / on real PostgreSQL 17, **not yet verified on the hosted project** | **58** |
-| Not done | **4** |
-| **Built and locally verified** | **94%** |
-| **Fully verified (counting hosted checks)** | **6%** |
+| M2 requirements in scope | **68** (plus 3 that belong to later milestones) |
+| Fully complete (verified at every level possible without your approval) | **5** |
+| Built and tested locally / on real PostgreSQL 17, **not yet verified on the hosted project** | **60** |
+| Not done | **3** |
+| **Built and locally verified** | **96%** |
+| **Fully verified (counting hosted checks)** | **7%** |
 
 **M2 is NOT complete.** The remaining steps are outside what I may do alone: apply migrations 11–18 (needs your approval), rotate the secret key and create the real Owner (separate approval), push (approval), and the checks that need real accounts, mailboxes or a Storage login.
 
@@ -55,7 +55,7 @@ Status key: ✅ complete · 🟡 built and tested locally, hosted verification p
 | B9 | Owner recovery by server script (O4) | `recover_owner_account` (service role only); scripts/recover-owner.ts | ACM-23..26 (PGlite + PG17); REC-01..04 (fakes) | Script never run against hosted | 🟡 |
 | B10 | Works with exactly one Owner; visible notice (O5) | /users and home page notices; guard | OWN-*; FUO-DB-3 | — | 🟡 |
 | B11 | Second Owner added later in the app (O6) | AddUserForm + `profile_create` (reason + password) | ACM-02/03, ACU-03/04 | Browser run | 🟡 |
-| B12 | Verified own-email change (O7) | trigger on `auth.users` (exists on hosted); My Account → `changeOwnEmail` | EML-03..07 (PGlite); trigger present on hosted (read-only check) | RSV-08: two real mailboxes | 🟡 |
+| B12 | Verified own-email change (O7) | trigger on `auth.users` (exists on hosted); My Account → `changeOwnEmail` | EML-03..07 (PGlite + PG17): confirmed address copied and audited, no direct edit, no sync switch abuse, rollback keeps Auth and profile equal. Expired/reused links and the emails themselves are Supabase Auth behaviour: only testable with real mailboxes | RSV-08: two real mailboxes | 🟡 |
 | B13 | First Owner creation, once, hidden password, forced change, audited | scripts/create-first-user.ts + scripts/lib/first-owner.ts | FUO-01..06 (fakes); FUO-DB-1..3 (PGlite + PG17) | REAL RUN needs your approval and the rotated Secret Key | 🟡 |
 
 ## C. Database write functions (DATABASE_SCHEMA §5)
@@ -90,7 +90,7 @@ Status key: ✅ complete · 🟡 built and tested locally, hosted verification p
 | E1 | D1 waiting refunds change no balance; refund limit under concurrency | views + `guard_refund` + `add_refund` | FIN-*, PAF-30/31, CON-05 (10 simultaneous refunds → exactly 3 succeed) | — | 🟡 |
 | E2 | D2 past-due rows locked; dated adjustments; plan + adjustments = amount due | guards + `apply_plan_change` | PLN-*, COL-*, BKF-23..26, CON-10 | — | 🟡 |
 | E3 | D3 proof for UPI/Card/Cheque (payments and refunds) | `check_proof_rule` + functions | PAY-*, PAF-03/33 | — | 🟡 |
-| E4 | D4 nights from IST calendar days, never typed | `calc_booking_amounts` | BKF-03/04/09 (23:30 IST → 00:30 IST = 1 night) | — | 🟡 |
+| E4 | D4 nights from IST calendar days, never typed | `calc_booking_amounts` | BKF-03/04/09; IST-01..09 (23:59:59 → 00:00:00 IST, UTC and other offsets, five database session time zones, per-night minimum, leap day and year end, booking-number year); IST-U (same rules in five machine time zones) | — | 🟡 |
 | E5 | D5 payment cannot be reversed while refunds depend on it, also against a simultaneous refund | `guard_payment` | REV-*, PAF-36, CON-07 | — | 🟡 |
 | E6 | Q9a original proofs immutable; corrections need 10+ char reason; never change balances | guards + function | COR-*, PAF-42 | — | 🟡 |
 | E7 | Owner decisions of 2026-11-11: payments on cancelled bookings, status undo needs a reason, reasons 5/10 characters, payment apps, refund limits (running A-D-RA-RW; cancelled A-RA-RW) | migrations 12, 14, 15, 16 | DEC-1..5 (PGlite + PG17); CON-12..14 (real PG17: simultaneous refunds on both kinds of booking); 11 mutation checks | Apply to hosted | 🟡 |
@@ -125,10 +125,12 @@ Status key: ✅ complete · 🟡 built and tested locally, hosted verification p
 | RSV-08 | Real email change with two mailboxes | hosted | — | Needs two real mailboxes | ❌ |
 | RSV-09 | Supabase advisors | hosted | done for 01–10 (no errors/warnings) | Re-run after 11–18 | 🟡 |
 | RSV-10 | Exposed API surface | hosted | done for 01–10 | Re-run after 11–18 (SEC-04 lists the 38 allowed functions locally) | 🟡 |
-| RSV-11 | IST midnight boundaries | — | IST rules covered by unit tests and BKF-04; today_ist() read on hosted | A true midnight test needs a clock we can set (not built) | ❌ |
+| RSV-11 | IST midnight boundaries | tests/db/ist-midnight.test.ts; tests/unit/ist-midnight.test.ts | IST-01..09 (PGlite + PG17) and IST-U in five machine zones: 34 tests pass; today_ist() is independent of the session zone. The wall clock itself cannot be moved, so the instant of the real midnight is tested through fixed instants | Run in CI with the next push | 🟡 |
 | RSV-12 | Hosted preconditions for migrations 11-18 (read-only): history, structure, exact row counts, dependants of what migration 17 drops, name collisions, privileges, storage, Auth settings | hosted | done 2026-11-11: history 10; every table that 17 changes holds 0 rows; only guard_booking depends on the dropped objects; no collisions | Re-run as the preflight just before any apply | ✅ |
 | RSV-13 | Migrations 01-18 run as a NON-superuser role named postgres (hosted-role rehearsal) | tests/db with STATEADV_PG_RESTRICTED=1; CI job database-postgres-17-restricted | 355 + 18 tests pass on real PostgreSQL 17.11 | The new CI job has not run on GitHub yet; Supabase's own extensions, PostgREST, Auth, Storage are not part of it | 🟡 |
 | RSV-14 | Dashboard-only settings: Secure email change ON, session lifetime / refresh-token rotation (FR-AUTH-2, FR-AUTH-16) | hosted dashboard | - | Only the project owner can look: not readable through the public API | ❌ |
+| RSV-15 | Who may decide payments and refunds; repeated and unknown-id decisions (second approver) | approve/reject/reverse functions (migration 15) | PAF-20..22, 35, 36 and PAF-50..55 (no session, unknown user, anon, switched-off user, unknown id, repeats, session-stamped approver) | Real two-person run in the browser needs two logins (after the first Owner exists) | 🟡 |
+| RSV-16 | Unauthenticated access to every settings and user page from a production build | local production server against the hosted project | done 2026-11-11: /settings/resorts, /settings/co, /settings/stay-types, /users all redirect to /login?next=...; /login and /api/health answer 200; sign-up refused (422 signup_disabled) | Logged-in screens need migrations 11-18 and accounts | ✅ |
 
 ## What I need from you (nothing below has been done)
 
