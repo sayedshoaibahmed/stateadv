@@ -112,7 +112,9 @@ set search_path = ''
 as $$
 begin
   new.updated_at := now();
-  new.updated_by := coalesce(auth.uid(), old.updated_by);
+  -- Honest attribution: with no logged-in person (system, e.g. the verified email copy) this stays empty,
+  -- instead of keeping the previous editor's name.
+  new.updated_by := auth.uid();
   return new;
 end
 $$;

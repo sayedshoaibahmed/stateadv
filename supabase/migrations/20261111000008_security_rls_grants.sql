@@ -46,6 +46,7 @@ alter table public.audit_logs             enable row level security;
 alter table public.system_status          enable row level security;
 
 -- 4. Read access: logged-in AND active. One policy per table; no write policies exist.
+--    "(select ...)" makes the database check the caller ONCE per query instead of once per row.
 do $$
 declare
   t text;
@@ -57,7 +58,7 @@ begin
     'audit_logs','system_status']
   loop
     execute format(
-      'create policy "active users can read" on public.%I for select to authenticated using (public.is_active_user())', t);
+      'create policy "active users can read" on public.%I for select to authenticated using ((select public.is_active_user()))', t);
     execute format('grant select on public.%I to authenticated', t);
   end loop;
 end

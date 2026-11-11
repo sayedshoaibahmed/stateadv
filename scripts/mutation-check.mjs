@@ -139,6 +139,12 @@ const MUTATIONS = [
     from: "if sum_a - old.amount_paise - sum_ra - sum_rw < 0 then",
     to: "if false then",
   },
+  {
+    name: "a system change keeps the PREVIOUS editor's name in updated_by",
+    file: "01",
+    from: "  new.updated_by := auth.uid();",
+    to: "  new.updated_by := coalesce(auth.uid(), old.updated_by);",
+  },
 ];
 
 let problems = 0;

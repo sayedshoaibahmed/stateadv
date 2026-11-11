@@ -5,7 +5,7 @@
 **Updated 2026-11-11:** your decisions O7 (verified own-email change), Q9a (correction files) and D5 (reversal protection) are now in the migration files. Section 10 shows exactly what changed, file by file. Sections 1-9 describe the current files.
 
 Files: `supabase/migrations/20261111000001_…` to `…000010_…` (10 files, about 2,000 lines of SQL).
-How it was checked: all ten files are applied to a throw-away in-memory PostgreSQL (PGlite) with stand-ins for Supabase's own parts, then **170 database tests** and a **mutation check (18 deliberately weakened versions)** run against it (§9).
+How it was checked: all ten files are applied to a throw-away in-memory PostgreSQL (PGlite) with stand-ins for Supabase's own parts, then **181 database tests** and a **mutation check (19 deliberately weakened versions)** run against it (§9).
 
 ## 1. What these migrations create
 
@@ -179,9 +179,9 @@ One row per booking with: amount due, total collection (approved only), waiting,
 
 ## 9. How it was tested
 
-- **170 database tests** (all fictional data) in six files: structure and security; accounts and Owner protection; bookings, cancellation and plan; payments, refunds and approvals; money views; and the new email-change / correction-file rules. Together with the 91 other tests: **261 tests**, all passing.
+- **181 database tests** (all fictional data) in eight files: structure and security; accounts and Owner protection; bookings, cancellation and plan; payments, refunds and approvals; money views; email-change / correction-file rules; guard branches found untested in the pre-push review; and a test that compares `DATABASE_SCHEMA.md` with the real database. Together with the 91 other tests: **272 tests**, all passing.
 - **Money cross-check:** the views are compared with the independent reference formulas in `src/lib/calc.ts` on the 19 golden cases (FIN-01…19) **and 250 random bookings, to the paisa**, including rejected/reversed noise that must not count.
-- **Mutation check** (`node scripts/mutation-check.mjs`): the migrations are deliberately weakened in **18** ways, one at a time, in a temporary copy. The original ten: last-Owner protection removed, RLS off, past-due lock off, waiting refunds reduce Pending, app users given INSERT, functions open to anon, refund limit off, approved payments editable, cancelled amounts editable, audit log editable. The eight new ones: email sync accepts any address; email sync may carry a role change; users may edit their own email directly; corrections allowed on waiting payments; ordinary files allowed on approved payments; correction reason not mandatory; originals can be hidden after approval; payment reversal allowed while refunds depend on it. **All 18 make real tests fail.**
+- **Mutation check** (`node scripts/mutation-check.mjs`): the migrations are deliberately weakened in **19** ways, one at a time, in a temporary copy. The original ten: last-Owner protection removed, RLS off, past-due lock off, waiting refunds reduce Pending, app users given INSERT, functions open to anon, refund limit off, approved payments editable, cancelled amounts editable, audit log editable. The eight new ones: email sync accepts any address; email sync may carry a role change; users may edit their own email directly; corrections allowed on waiting payments; ordinary files allowed on approved payments; correction reason not mandatory; originals can be hidden after approval; payment reversal allowed while refunds depend on it. The nineteenth: a system change keeps the previous editor's name in `updated_by`. **All 19 make real tests fail.**
 - Bugs found and fixed by these tests before review: an expression in the commit-time plan check that referenced a column not present on every table, a plan-row guard that rejected the intended "replace" update; and, in the new work, one of my own new tests that proved nothing: the mutation check exposed it and it was rewritten so the protected path is genuinely exercised.
 
 **Limits (honest):** the engine is PostgreSQL 18 (Supabase runs 17); Supabase's own pieces are stand-ins. Tests with several simultaneous connections (parallel bookings, two Owners acting at once) cannot run on a single connection and are planned for GitHub Actions on real Postgres (later in M2). The first real test on Supabase is the apply step itself, which I will run only with `--dry-run` first and after your approval.
@@ -218,3 +218,58 @@ You approved O7, Q9a and D5. Because nothing has been applied to Supabase, I edi
 3. **Still to be written in M2:** `next_booking_code`, `create_booking`, plan/cancel/refund/payment functions, the correction-file function, user-management functions, `recover_owner_account` (service role only).
 4. **Supabase hosted specifics to confirm at apply time:** creating policies on `storage.objects`, inserting into `storage.buckets`, and creating a trigger on `auth.users`. These are standard on Supabase but can only be proven on the real service.
 5. **If the sync is ever refused, Auth's email change is rolled back** (by design, so Auth and the profile never differ). The app will show a plain message and keep the old email.
+
+## 12. Pre-push review (2026-11-11)
+
+### 12.1 The date
+Commit 1317052 and ten files said "2026-11-12" and the migration files were named `20261112…`. That was **my mistake**: the machine date and every commit timestamp are **2026-11-11**. It is corrected everywhere, including inside the local commit history (no commit now contains it) and the migration file names (`20261111000001…10`). Deliberately **not** changed: the 12 Nov values in `src/lib/dates.ts` and `tests/unit/dates.test.ts` (real time-zone boundary test data from the first milestone) and a random-number seed in a test. The corrected files are byte-identical to what the tests ran on.
+
+### 12.2 Do the migrations implement the documented rules consistently?
+Checked three ways: (1) a new automatic test compares `DATABASE_SCHEMA.md` with the real database: the same 19 tables, the same 10 enum types with the same values in the same order, and every one of 150+ column names the document mentions exists; (2) the rule-to-test matrix below; (3) a line-by-line re-read of the guard functions.
+
+| Documented rule | Enforced by | Tests |
+|---|---|---|
+| Booking ID format, uniqueness, year = booking-date year, frozen parts (FR-BID) | table checks + `guard_booking` | BID-* |
+| Amount formula, nights, discount, manual adjustment (FR-BK-4) | `bookings_base_formula`, generated columns | AMT-* |
+| C/O rules (FR-BK-2) | `bookings_co_rules`, type match | CO-* |
+| Cancellation, no-show, original amounts untouched (FR-CAN) | table checks + `guard_booking` | CAN-* |
+| Plan must balance; past-due rows locked; adjustments dated today (FR-SCH) | commit-time check + `guard_schedule`, `guard_adjustment` | PLN-*, COL-11* |
+| Payment starts waiting, dates, codes, resort copy (FR-PAY) | `guard_payment` | PAY-* |
+| Screenshot rule for UPI/Card/Cheque (FR-PAY-2, D3) | commit-time proof check | PAY-*, REF-06 |
+| Decisions, locking, self-approval flag, history (FR-APR) | `guard_payment/refund`, history trigger | APR-* |
+| Reversal protection (FR-APR-3a, D5) | `guard_payment` | REF "REVERSAL", REV-01..03 |
+| Refund limit, own approval flow (FR-REF) | `guard_refund` | REF-* |
+| Correction files (FR-PAY-12, Q9a) | `guard_proof` + `proofs_correction_fields` | COR-* |
+| Money figures (PRD 5.11), expected/overdue (5.12) | views and function | FIN-01..19 + 250 random, COL-* |
+| Owner protection, self-disable, last Owner (FR-AUTH) | `guard_user_profiles` | OWN-*, USR-* |
+| Verified own-email change (FR-AUTH-16, O7) | guard + sync trigger | EML-* |
+| No deletes, append-only history, audit (section 18) | triggers | schema/audit tests |
+| Private storage, RLS, minimum privileges (SECURITY 3, 5) | migrations 08 and 09 | SEC-* |
+
+### 12.3 Defects found in this review (both fixed)
+1. **"Last updated by" could name the wrong person.** A change with no logged-in person (such as the verified email copy) left `updated_by` showing the *previous* editor. It is now empty (meaning "system"), as the audit log already said. New test plus a mutation check.
+2. **Read policies checked the user once per row.** They now use `(select is_active_user())`, so the database checks once per query, as Supabase recommends. Same rule, much cheaper on large lists. (Migrations 08 and 09.)
+
+Also added: eight tests for guard branches that had none (account created inactive, cancel with no session, cash→UPI edit without a file, PDF version/job/status tables, duplicate stored file name).
+
+Static checks run on the built database: every one of the 25 functions has a fixed search path; every table has a primary key; no function is callable by `anon`.
+
+### 12.4 Rules that are NOT enforced by the database (by design: the write functions and screens do them)
+Duplicate-reference / duplicate-screenshot / over-amount **warnings** (FR-PAY-6); payments on a cancelled booking only up to the charge (FR-PAY-11); at most 5 files per payment and file-type checking by content (FR-PAY-3); returning the existing record on a repeated submit; the "someone else changed this" check (the database bumps the version, the function compares it); queuing PDF jobs; plain-English messages for the error codes; the password re-entry and reasons for protected Owner actions; dashboard alerts; forced password change; the nightly integrity checks. **Each needs its own test when the write functions and screens are built.**
+
+### 12.5 What the in-memory stand-in cannot prove, and how each will be verified
+| What differs | Risk | How and when it will be verified |
+|---|---|---|
+| Engine is PostgreSQL **18**; Supabase runs **17** | A syntax or behaviour difference | Run the same 181 tests against a real Supabase Postgres 17 in GitHub Actions (disposable). Later in M2. |
+| Only **one connection** | Concurrency behaviour is unproven (parallel bookings, two Owners disabling each other, double refund, double approval) | Concurrency tests BID-02/03, OWN-06, REF-04, APR-05 on real Postgres in CI. Later in M2. |
+| Roles, `auth.uid()`, default privileges, `auth` and `storage` schemas are **my copies** of Supabase's | Real Supabase may differ in details (claim names, default grants, owners) | First apply uses `--dry-run`; afterwards read-only checks on the real project: privilege queries, REST probes with the public key (anon sees nothing, a user with no profile sees nothing), storage probes. |
+| Hosted Supabase restrictions on `storage` and `auth` objects | Policies on `storage.objects`, inserts into `storage.buckets` and the trigger on `auth.users` might be refused | Each migration file runs in its own transaction, so a refusal changes nothing in that file. Confirmed only by applying to the dev project (after your approval). |
+| No real **Supabase Auth** | The email-change confirmation (old + new address) and the exact columns Auth updates are simulated | End-to-end test with real mailboxes (Supabase team addresses) after apply; confirm "Secure email change" is ON. |
+| No PostgREST / pooler | Behaviour per request and through the pooler | All state uses transaction-local settings and transaction-level locks, which work through the pooler. Verified in the real-project run. |
+| Time zone set explicitly in every rule | Low | Rules use `Asia/Kolkata` explicitly; checked around midnight IST in the real run. |
+| Supabase **Advisors** (security and performance) | Warnings I cannot see here | Run in the dashboard after apply; review every item. |
+
+### 12.6 Informational notes (no action needed now)
+- 40 "who did it" foreign keys (`created_by`, `updated_by`, `approved_by` …) have no index. Deletes are blocked, so this only affects filtering; revisit with real report queries in the reports work.
+- A change made with the **secret key and no logged-in person** (for example in the Supabase dashboard) is allowed on non-money master data and is audited as "system". Money records, accounts and files still require a real active user. This is why the secret key must stay private and be rotated after any exposure.
+- The audit log for the email copy shows the actor as the system (Supabase Auth), with the user as the target.

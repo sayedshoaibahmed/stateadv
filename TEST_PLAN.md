@@ -286,6 +286,22 @@ Tests never run against production, and **no test data is ever left in the real 
 | REV-02 | the same while a refund is only **waiting** | ✅ refused; allowed once that refund is rejected |
 | REV-03 | reverse after the dependent refund was reversed | ✅ allowed |
 
+### 2.13b Real-Supabase verification (only after the owner approves applying the migrations)
+These cannot be proven by the in-memory database; see supabase/MIGRATION_REVIEW.md section 12.5.
+| ID | Case | Expected |
+|---|---|---|
+| RSV-01 | `supabase db push --dry-run` against the dev project | lists exactly the 10 migrations, no error |
+| RSV-02 | apply to the dev project | all 10 succeed (watch: storage policies, bucket insert, trigger on `auth.users`) |
+| RSV-03 | run the same database test suite against a real Supabase Postgres 17 stack in GitHub Actions | all pass |
+| RSV-04 | concurrency tests on real Postgres: BID-02/03 (parallel bookings), OWN-06, REF-04, APR-05 | no duplicates, no zero-Owner state, no double refund/approval |
+| RSV-05 | privilege queries on the real database | anon: nothing; authenticated: SELECT only; only the 4 allow-listed functions callable |
+| RSV-06 | REST probes with the public key | anon cannot read any table or view; a valid login without a profile sees 0 rows |
+| RSV-07 | storage probes | buckets private; anon cannot read; well-named upload works; badly named refused; update/delete refused; signed URL expires |
+| RSV-08 | real email change with two real mailboxes | both confirm → profile follows; only one confirms → nothing changes; profile refuses → Auth change rolled back |
+| RSV-09 | Supabase Advisors (security, performance) | no security errors; every note reviewed |
+| RSV-10 | exposed API surface | only the allow-listed functions appear as RPC; no table is writable |
+| RSV-11 | time handling around midnight IST | dates and locks switch at IST midnight |
+
 ### 2.14 UI / E2E
 Flows F1–F10 (UI spec §4) on desktop and mobile. Plus: keyboard-only booking creation, a throttled network during upload, the offline banner, plain-English errors, and the dashboard showing exactly one Total Collection (Approved) card and a separate Waiting card (Q17).
 

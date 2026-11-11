@@ -17,11 +17,11 @@ on conflict (id) do nothing;
 
 -- Read
 create policy "active users read proofs" on storage.objects for select to authenticated
-  using (bucket_id = 'payment-proofs' and public.is_active_user());
+  using (bucket_id = 'payment-proofs' and (select public.is_active_user()));
 create policy "active users read booking pdfs" on storage.objects for select to authenticated
-  using (bucket_id = 'booking-pdfs' and public.is_active_user());
+  using (bucket_id = 'booking-pdfs' and (select public.is_active_user()));
 create policy "active users read logos" on storage.objects for select to authenticated
-  using (bucket_id = 'resort-logos' and public.is_active_user());
+  using (bucket_id = 'resort-logos' and (select public.is_active_user()));
 
 -- Add (only well-formed server-generated names)
 --   proofs : {booking_id}/{uuid}.ext   or   refunds/{booking_id}/{uuid}.ext
@@ -29,13 +29,13 @@ create policy "active users read logos" on storage.objects for select to authent
 --   logos  : {resort_id}/{uuid}.ext
 create policy "active users add proofs" on storage.objects for insert to authenticated
   with check (
-    bucket_id = 'payment-proofs' and public.is_active_user()
+    bucket_id = 'payment-proofs' and (select public.is_active_user())
     and name ~ '^(refunds/)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp|pdf)$');
 create policy "active users add booking pdfs" on storage.objects for insert to authenticated
   with check (
-    bucket_id = 'booking-pdfs' and public.is_active_user()
+    bucket_id = 'booking-pdfs' and (select public.is_active_user())
     and name ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/v[0-9]{1,6}\.pdf$');
 create policy "active users add logos" on storage.objects for insert to authenticated
   with check (
-    bucket_id = 'resort-logos' and public.is_active_user()
+    bucket_id = 'resort-logos' and (select public.is_active_user())
     and name ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$');

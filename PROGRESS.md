@@ -3,38 +3,44 @@
 Last updated: 2026-11-11
 
 ## Current status (updated 2026-11-11)
-**M2 – Database and Authentication is ONE milestone, in progress.** The database schema and security rules are written and tested locally, now including the owner's decisions of 2026-11-11 (O7 verified own-email change, Q9a correction files, D5 reversal protection). They are **NOT applied to Supabase** and **NOT pushed**.
-- Local-only commits (not pushed, awaiting owner approval); GitHub (`origin/main`) is still at `f15f5e9`.
+**M2 – Database and Authentication is ONE milestone, in progress.** The database schema and security rules (including the owner's decisions O7, Q9a and D5) are written, tested and **reviewed before pushing**. They are **NOT applied to Supabase** and **NOT pushed**.
+- Local-only commits awaiting owner approval to push; GitHub (`origin/main`) is still at `f15f5e9`.
 - No Owner account has been created. No connection string has been requested or used. No migration has been applied.
-- Waiting for the owner to review the updated `supabase/MIGRATION_REVIEW.md` (section 10 lists exactly what changed).
+
+### Pre-push review (2026-11-11) - summary
+- **Date error corrected:** the accidental "2026-11-12" (documents, comments, commit message, migration file names `20261112…`) is now **2026-11-11** everywhere, including inside the local history. M1 date test data (12 Nov boundary cases) was correctly left alone.
+- **Two small defects found and fixed:** "last updated by" could keep the previous editor's name for system changes; read policies checked the user once per row (now once per query).
+- **Document ↔ database check added:** a test compares DATABASE_SCHEMA.md with the real database (19 tables, 10 enums with values, 150+ column names).
+- **Eight guard-branch tests added.** Static checks: all 25 functions have a fixed search path; all tables have primary keys.
+- **Rule matrix and stand-in assumptions** are in `supabase/MIGRATION_REVIEW.md` section 12; real-Supabase verification list RSV-01..11 in TEST_PLAN §2.13b.
+- **Credentials:** none in any tracked file or in the whole git history (details in the review report).
+- Tests: **272 pass** (181 database + 91 others). Mutation check: **19 of 19** weakened versions caught.
 
 ### Exact remaining blockers
 | # | Blocker | Status | Who |
 |---|---|---|---|
-| 1 | **Secret key revocation** | **Open.** Last checked 2026-11-11: `.env.local` still holds the key pasted in chat; it works, and Supabase still accepts that same key (HTTP 200). Create a new secret key, delete the old one in Supabase (Project Settings → API Keys), put the new one in `.env.local` yourself. I will re-verify without printing it. | Owner |
-| 2 | **GitHub Actions verification** | **Open.** I cannot read a private repository's CI (no GitHub tool here; anonymous access gets 404). Please report the result of both jobs, "Lint, typecheck, test, build" and "Secret scan", for the last pushed commit `f15f5e9`. Note: the unpushed work adds a database-test run to the same job (PGlite, no secrets needed). | Owner |
-| 3 | Push approval | Waiting. Local commits are ready; commit messages no longer say "M2-A". | Owner |
-| 4 | Approval to apply the migrations to the dev project | Waiting. Needs your review of the updated migration files first. | Owner |
-| 5 | Session Pooler connection string | **Not requested yet**, by instruction. Needed only for step 4, entered by you into `.env.local`. | Owner |
-| 6 | Approval to create the first Owner account | Waiting. Not before the migrations are applied and you say so. | Owner |
-| 7 | Remaining M2 work | Write functions (booking ID, bookings, plan, payments, refunds, approvals, correction-file function, user management, recovery), login / My Account / user screens, first-Owner script, CI job on real Postgres with concurrency tests. | Developer |
+| 1 | **Secret key revocation** | **Open.** Last checked 2026-11-11: `.env.local` still holds the key pasted in chat; it works, and Supabase still accepts that same key. Create a new secret key, delete the old one in Supabase (Project Settings → API Keys), put the new one in `.env.local` yourself. I will re-verify without printing it. | Owner |
+| 2 | **GitHub Actions verification** | **Open.** I cannot read a private repository's CI. Please report both jobs, "Lint, typecheck, test, build" and "Secret scan", for the last pushed commit `f15f5e9`. (The unpushed work adds database tests to the same job; they need no secrets.) | Owner |
+| 3 | Push approval | Waiting. | Owner |
+| 4 | Approval to apply the migrations to the dev project | Waiting. First step would be `--dry-run`. | Owner |
+| 5 | Session Pooler connection string | **Not requested yet**, by instruction. | Owner |
+| 6 | Approval to create the first Owner account | Waiting. | Owner |
+| 7 | Remaining M2 work | Write functions (booking ID, bookings, plan, payments, refunds, approvals, correction-file function, user management, recovery), login / My Account / user screens, first-Owner script, real-Postgres CI job with concurrency tests, real-Supabase verification (RSV-01..11). | Developer |
 
 ### Done so far in M2
 - 10 migration files (`supabase/migrations/20261111000001..10`, about 2,150 lines): 19 tables, 3 views, 10 enums, 59 foreign keys, 75 check constraints, 57 indexes, 24 RLS policies, 97 triggers + 1 on `auth.users`, 25 functions (4 callable by app users).
-- **O7:** profile email follows only an address Supabase Auth has confirmed; direct self-edit refused; roles never self-service. **Q9a:** originals of decided payments/refunds locked; controlled correction files (approved items only, reason of 10+ characters, permanent, listed in `correction_files`). **D5:** reversal blocked while dependent refunds exist.
-- Database tests on PGlite (PostgreSQL 18 in memory; never connected to Supabase), fictional data only: **170 database tests** (143 earlier + 27 new); with the 91 other tests, **261 pass**. Money views match `src/lib/calc.ts` on the golden table and 250 random bookings. Two earlier assertions were updated because the decisions changed the expected error name / the views list; everything else is unchanged.
-- Mutation check: **18 of 18** deliberately weakened versions of the migrations are caught by failing tests (it also exposed one vacuous new test of mine, which was rewritten).
+- **O7**, **Q9a**, **D5** implemented and tested (see MIGRATION_REVIEW §10).
 - Review guide: `supabase/MIGRATION_REVIEW.md`.
 
 ### Still to confirm only on the real Supabase project
-Creating policies on `storage.objects`, inserting into `storage.buckets`, creating a trigger on `auth.users`, the real confirmation emails (Secure email change ON; built-in development email delivers only to Supabase team addresses).
+Policies on `storage.objects`, inserting into `storage.buckets`, the trigger on `auth.users`, the real confirmation emails (Secure email change ON; built-in development email delivers only to Supabase team addresses), concurrency behaviour, Supabase Advisors.
 
 ## Milestones
 | # | Milestone | Status | Approved by owner |
 |---|---|---|---|
 | M0 | Requirement Analysis and Architecture | ✅ Complete | Yes (2026-11-11) |
 | M1 | Project Setup | 🟢 Complete, awaiting review | No |
-| M2 | Database and Authentication | 🟡 In progress (one milestone). Schema written + tested locally, awaiting review. Not applied. | Started 2026-11-11; applying to Supabase and creating the Owner need separate approval |
+| M2 | Database and Authentication | 🟡 In progress (one milestone). Schema written, tested and reviewed locally. Not applied. | Started 2026-11-11; applying to Supabase and creating the Owner need separate approval |
 | M3 | UI and Dashboard | ⚪ Not started | No |
 | M4 | Resort, Guest and Booking Management | ⚪ Not started | No |
 | M5 | Payment Management and Approvals | ⚪ Not started | No |
