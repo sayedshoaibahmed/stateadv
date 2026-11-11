@@ -1,0 +1,117 @@
+# IMPLEMENTATION_PLAN — Milestones M0 to M10
+
+| Item | Value |
+|---|---|
+| Status | M0 final draft |
+| Last updated | 2026-11-11 |
+
+Rules (from the project brief):
+- Milestones run strictly in order. Each one starts **only after explicit owner approval**.
+- Inside an approved milestone, work is autonomous. Questions are asked only for credentials, financial business decisions, irreversible actions, or production deployment.
+- Each milestone ends with a report: completed work, files changed, tests and results, remaining work, known issues, decisions needed. PROGRESS.md is updated.
+- Nothing is called "done" without verification.
+
+Every milestone also includes: updating the affected docs; lint + typecheck + all tests; a git commit (from M1).
+
+---
+
+## M0 — Requirement Analysis and Architecture
+- Directory inspected (empty). Ten planning documents written.
+- All business questions decided (PRD §11), except Q11 (deferred to before M10).
+- Derived rules D1–D4 decided. Owner-account protection designed (PRD FR-AUTH-9…13).
+- **Exit:** the owner confirms O1–O4 (or accepts) and approves M0.
+
+## M1 — Project Setup
+Needs from the owner: GitHub access (private repo), a Supabase account for a **free dev project**, and the Docker Desktop yes/no decision.
+1. `git init`, `.gitignore`, README. Docs stay in the root (or move to `/docs`). Private GitHub repo and first push.
+2. Next.js app (TypeScript strict, App Router, ESLint, Tailwind, `src/`), Prettier.
+3. shadcn/ui init + base components.
+4. Libraries: `@supabase/ssr`, `@supabase/supabase-js`, react-hook-form, zod, `@hookform/resolvers`, date-fns (+ tz), @tanstack/react-table, recharts, @react-pdf/renderer, server-only. Dev: vitest, @playwright/test, supabase CLI.
+5. Supabase CLI init/link (dev). Local stack if Docker is available.
+6. `lib/supabase/{client,server,admin}.ts`, `lib/env.ts` (zod), `.env.example`.
+7. `lib/money.ts`, `lib/dates.ts` (IST, nights) and `lib/calc.ts` (preview: base/total/final), all with full unit tests.
+8. CI: lint → typecheck → unit → DB tests → migration-safety script → secret scan.
+- **Exit:** the app runs locally against Supabase dev, CI is green, and the money/date/calc tests pass.
+
+## M2 — Database and Authentication
+1. Migrations: extensions → enums → tables (incl. refunds, proofs, approval_history, booking_sequences per resort/year, payment_plan_revisions, expected_adjustments) → constraints (pricing, C/O, cancellation, adjustment) → indexes → triggers (audit, updated_at, prevent_delete, immutability, approval_guard, schedule_guard past-due lock, resort copy, plan-invariant and proof deferred checks, user_profiles_guard: self-disable / last Owner / O1–O2) → views (`booking_financials`, `expected_entries`) and functions (`booking_overdue`, `plan_preview`) → RPCs (incl. plan revision rules, `recover_owner_account`) → grants/revokes → RLS → storage buckets and policies.
+2. Seed: stay types (Resort Stay, Day Outing, Package), payment providers. Dev-only test users (2 Owners, 2 Managers). `scripts/create-first-user.ts` and `scripts/recover-owner.ts`.
+3. Auth: email/password login, proxy (`src/proxy.ts`), protected layout, logout, forced password change, user management (add/edit/disable/enable/reset) with self-disable block, Owner protection (Owner-only actions on Owners, password re-entry, reason, alert), Forgot-password link for Owner accounts, and audit.
+4. Generated TS types.
+5. pgTAP: RLS everywhere, anon denied, inactive user denied, deletes blocked, ID concurrency per resort/year, pricing/C/O/cancellation constraints, plan invariant + past-due lock + adjustments (PLN-05…11, COL-11*), proof rule, transitions, refund limit + race, all of FIN-01…19, audit actor, self-approval flags, USR-* and OWN-* rules.
+- **Exit:** all DB tests pass. Login, logout and user management work. A direct REST write attempt fails.
+
+## M3 — UI and Dashboard
+1. App shell (sidebar, top bar with user name, mobile bottom nav, global search stub, resort filter).
+2. Design tokens. `<Money>`, `<StatusBadge>`, `<SelfApprovedTag>`, `<DateText>`. Empty/loading/error states.
+3. Dashboard with one **Total Collection (Approved)** card (+ refunds/net line), a separate Waiting card, Expected, Pending, resort table, chart, recent lists, alerts. Aggregate RPCs.
+4. Responsive checks at 360/768/1280.
+- **Exit:** dashboard figures match the golden fixture, and it works on mobile.
+
+## M4 — Resort, Guest and Booking Management
+1. Resorts (code locked after the first booking, logo upload, activate/deactivate).
+2. Agents & Partners, plus quick-add from the booking form.
+3. Stay types and payment apps in Settings.
+4. Guests (search, detail, history, duplicate suggestions).
+5. Booking form: pricing method, nights, extras, discount, manual adjustment with reason, C/O rules, plan editor (empty amounts, sum check; on later changes: locked past rows shown read-only, "Amount still to plan", move-overdue option, automatic adjustment notice), idempotency.
+6. Booking list, booking page (Details, Plan, History; Payments/PDF tabs as placeholders).
+7. Edit booking: locked resort/year, amount-change reason + plan, version check. Check-in/out status.
+8. Cancel / No-show dialog (no default charge / pre-filled full amount + reason), cancellation plan, charge correction.
+9. Global search.
+- **Tests:** AMT-*, CO-*, BID-*, PLN-*, EDT-*, CAN-* (DB + E2E), double-submit, edit conflict.
+- **Exit:** bookings can be created, edited, cancelled and marked no-show, with correct IDs, plans and audit history.
+
+## M5 — Payment Management and Approvals
+1. Signed uploads, compression, server verification + SHA-256.
+2. Add Payment (proof required for UPI/Card/Cheque), warnings, edit waiting payment, hide proof.
+3. Add Refund (limit, warnings, proof rule), refund list.
+4. Approvals page (Payments/Refunds tabs, review panel, approve/reject/reverse, self-approved notes).
+5. Payments and Refunds list pages. Money box from `booking_financials`.
+- **Tests:** PAY-*, APR-*, REF-*, FIN-* via the UI, concurrency.
+- **Exit:** the full payment and refund life-cycle works, and every figure matches the golden fixture.
+
+## M6 — Automatic PDF Generation
+1. Template (all PRD §5.14 content, Noto Sans ₹, logo, disclaimer, version).
+2. Job processing after commit, content-hash de-duplication, version registration.
+3. Cron retry + Regenerate button. PDFs tab with downloads.
+- **Tests:** PDF-01…09.
+- **Exit:** PDFs are created on every listed event, de-duplicated, and old versions are downloadable.
+
+## M7 — Calendar and Historical Records
+1. Calendar (month/week/agenda) and day page (check-ins, outs, staying, received, refunds, due).
+2. Old Records search. Activity page (incl. account actions) with diffs.
+3. Backdated entries shown clearly (payment/refund date vs entered at).
+- **Tests:** IST boundaries, multi-year data (2020–2035), performance with about 50k bookings.
+- **Exit:** any date can be viewed and managed; old records, screenshots and PDFs are reachable.
+
+## M8 — Reports and Collections
+1. Report functions: collection (daily/weekly/monthly/yearly), resort-wise expected vs actual (Originally Expected + Expected Adjustments), payment methods, bookings, pending + overdue, waiting, refunds, cancellations, Expected Adjustments report, manual-adjustment report.
+2. Report pages, CSV + PDF export.
+- **Tests:** COL-*, golden fixture for every report, Excel/Sheets opening.
+- **Exit:** all reports match the golden fixture.
+
+## M9 — Testing and Security
+1. Full TEST_PLAN run, and fill coverage gaps (≥ 90% on money/date/calc; every RPC covered by pgTAP).
+2. Security review (RLS audit, anon/inactive attempts, signed URL expiry, headers, deps, secrets).
+3. Performance test. Plain-language usability review.
+4. Backup job built and the **restore drill** executed on a scratch project.
+- **Exit:** all green, no open high/critical findings, drill documented.
+
+## M10 — Deployment and Handover
+Needs the **budget/provider confirmation (Q11)** and explicit production approval.
+1. Production projects on paid plans (Mumbai). Env vars, domain.
+2. Staging migration → smoke test → backup → production migration.
+3. Real user accounts and the four resorts.
+4. Backup cron enabled and the first run verified.
+5. Handover: user guide (simple English, screenshots), admin guide, recovery runbook, credentials checklist, support plan.
+- **Exit:** owner sign-off after UAT on production.
+
+---
+
+## Owner decision status
+| Item | Status | Needed before |
+|---|---|---|
+| Q1–Q10, Q12–Q17 (incl. Q6b, Q7a–d) | ✅ Decided (PRD §11) | — |
+| D1–D4 derived rules | ✅ Decided | — |
+| O1–O4 Owner-account protection | ✅ Accepted with M0 approval | — |
+| Q11 hosting budget/providers | ⏸ Deferred | M10 (development on free tiers) |
