@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/lib/auth/actions";
@@ -14,7 +15,23 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="flex items-center justify-between gap-3 border-b px-4 py-3">
-        <span className="font-semibold">Resort Management</span>
+        <nav aria-label="Main" className="flex items-center gap-4">
+          <Link href="/" className="font-semibold">
+            Resort Management
+          </Link>
+          <Link
+            href="/users"
+            className="text-sm underline-offset-4 hover:underline"
+          >
+            People
+          </Link>
+          <Link
+            href="/account"
+            className="text-sm underline-offset-4 hover:underline"
+          >
+            My Account
+          </Link>
+        </nav>
         <div className="flex items-center gap-3">
           <span className="hidden text-sm sm:inline">{user.fullName}</span>
           <Badge variant="secondary">

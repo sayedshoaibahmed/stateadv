@@ -20,6 +20,8 @@ const call = <T = Record<string, unknown>>(
   p?: unknown[],
   actor: string | null = w.manager,
 ) => w.db.as({ role: "authenticated", uid: actor }, () => q<T>(sql, p));
+// Test helper: rows and JSON results are inspected loosely on purpose.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = Record<string, any>;
 const j = (x: unknown) => JSON.stringify(x);
 

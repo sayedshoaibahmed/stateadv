@@ -17,6 +17,8 @@ beforeAll(async () => {
   if (REAL) w = await setupWorld();
 }, 120_000);
 
+// Test helper: rows and JSON results are inspected loosely on purpose.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = Record<string, any>;
 const j = (x: unknown) => JSON.stringify(x);
 

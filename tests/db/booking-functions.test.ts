@@ -64,12 +64,7 @@ async function create(
 const simple = async (over: Json = {}, final = 500000) =>
   create(await payload(over), [await row(2, final)]);
 const booking = async (id: string) =>
-  (
-    await q<Record<string, any>>(
-      `select * from public.bookings where id = $1`,
-      [id],
-    )
-  )[0];
+  (await q<Json>(`select * from public.bookings where id = $1`, [id]))[0];
 const call = <T = Record<string, unknown>>(
   sql: string,
   p?: unknown[],
