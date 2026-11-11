@@ -110,11 +110,19 @@ describe("Row Level Security and privileges (SEC-01..05)", () => {
       select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace and n.nspname = 'public'
       where p.prokind = 'f' and has_function_privilege('authenticated', p.oid, 'EXECUTE')
       order by 1`);
+    // Every function an app user may call is listed here ON PURPOSE. Adding a function
+    // means adding it here in the same change, after checking its authorisation rules.
     expect(auth.map((r) => r.proname)).toEqual([
+      "active_owner_count",
       "booking_overdue",
       "complete_password_change",
       "is_active_user",
       "normalize_mobile",
+      "profile_change_email",
+      "profile_create",
+      "profile_reset_password",
+      "profile_set_active",
+      "profile_update",
       "today_ist",
     ]);
   });
