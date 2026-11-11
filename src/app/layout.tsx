@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -34,7 +35,20 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background text-base text-foreground">
-        {children}
+        {/*
+          Every page reads the login session at request time (Cache Components
+          requires a Suspense boundary for that). Nothing about who is signed in
+          is ever cached or prerendered.
+        */}
+        <Suspense
+          fallback={
+            <main className="flex flex-1 items-center justify-center p-4 text-muted-foreground">
+              Loading…
+            </main>
+          }
+        >
+          {children}
+        </Suspense>
       </body>
     </html>
   );

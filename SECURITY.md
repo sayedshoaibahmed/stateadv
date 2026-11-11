@@ -30,6 +30,14 @@
 - Owner accounts: a reset by another Owner (password re-entry + reason), **or** the "Forgot password" email link, which is enabled for Owner accounts only. Production needs a reliable email sender (custom SMTP; cost under Q11).
 - **MFA (TOTP) is strongly recommended for Owner accounts** (O4).
 
+### 2.1 How the app checks a request (implemented)
+- `src/proxy.ts` is only a quick first check: no valid login token → redirect to `/login`. It never decides what a user may do.
+- Every protected page, layout and action calls `requireUser()` (`src/lib/auth/session.ts`), which (1) asks Supabase Auth to confirm the session (`getUser()`), (2) reads the user's profile **with the user's own login**, so row-level security returns nothing for a switched-off account, and (3) sends a user with a temporary password to the change-password page. Nothing is cached: a switched-off account loses access on its next request.
+- A person with a correct password but no active profile is signed out at `/auth/blocked` (a GET route that only ends the caller's own session).
+- "Forgot password" works for **active Owner accounts only** and always shows the same answer. To decide this it uses the secret key in one narrow, server-only lookup of `role, is_active`; the result never reaches the browser.
+- The `next` address after sign-in is accepted only if it stays inside the app (`safeNext`).
+- Known limit: `complete_password_change()` cannot prove a password really changed (the database never sees passwords). The flag is a reminder for the account holder, not a barrier against themselves.
+
 ## 3. Authorisation
 
 ### 3.1 Same access for every active user

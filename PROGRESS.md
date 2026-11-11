@@ -3,37 +3,32 @@
 Last updated: 2026-11-11
 
 ## Current status (updated 2026-11-11)
-**M2 – Database and Authentication is ONE milestone, in progress.** The database schema and security rules (including the owner's decisions O7, Q9a and D5) are written, tested and **reviewed before pushing**. They are **NOT applied to Supabase** and **NOT pushed**.
-- Local-only commits awaiting owner approval to push; GitHub (`origin/main`) is still at `f15f5e9`.
-- No Owner account has been created. No connection string has been requested or used. No migration has been applied.
+**M2 – Database and Authentication is ONE milestone, in progress.** Full requirement-by-requirement audit: `M2_STATUS.md`.
 
-### Pre-push review (2026-11-11) - summary
-- **Date error corrected:** the accidental "2026-11-12" (documents, comments, commit message, migration file names `20261112…`) is now **2026-11-11** everywhere, including inside the local history. M1 date test data (12 Nov boundary cases) was correctly left alone.
-- **Two small defects found and fixed:** "last updated by" could keep the previous editor's name for system changes; read policies checked the user once per row (now once per query).
-- **Document ↔ database check added:** a test compares DATABASE_SCHEMA.md with the real database (19 tables, 10 enums with values, 150+ column names).
-- **Eight guard-branch tests added.** Static checks: all 25 functions have a fixed search path; all tables have primary keys.
-- **Rule matrix and stand-in assumptions** are in `supabase/MIGRATION_REVIEW.md` section 12; real-Supabase verification list RSV-01..11 in TEST_PLAN §2.13b.
-- **Credentials:** none in any tracked file or in the whole git history (details in the review report).
-- Tests: **272 pass** (181 database + 91 others). Mutation check: **19 of 19** weakened versions caught.
+### Where things stand
+- **Pushed to GitHub:** six reviewed commits up to `92ecd3d`; both CI jobs passed.
+- **Applied to the dev Supabase project (`prfarsersxoeavcqydez`, PostgreSQL 17.11):** migrations 01–10, verified read-only (19 tables, 3 views, 10 enums, 25 functions, 97 triggers, 24 policies, 3 private buckets, trigger on `auth.users`). Advisors: no errors or warnings. Anonymous access denied.
+- **Written locally, NOT applied, NOT pushed:** migration 11 (`complete_password_change`) and the first part of the sign-in screens (below).
+- **No Owner account exists.** Hosted Auth: signup disabled, email login only.
 
-### Exact remaining blockers
-| # | Blocker | Status | Who |
-|---|---|---|---|
-| 1 | **Secret key revocation** | **Open.** Last checked 2026-11-11: `.env.local` still holds the key pasted in chat; it works, and Supabase still accepts that same key. Create a new secret key, delete the old one in Supabase (Project Settings → API Keys), put the new one in `.env.local` yourself. I will re-verify without printing it. | Owner |
-| 2 | **GitHub Actions verification** | **Open.** I cannot read a private repository's CI. Please report both jobs, "Lint, typecheck, test, build" and "Secret scan", for the last pushed commit `f15f5e9`. (The unpushed work adds database tests to the same job; they need no secrets.) | Owner |
-| 3 | Push approval | Waiting. | Owner |
-| 4 | Approval to apply the migrations to the dev project | Waiting. First step would be `--dry-run`. | Owner |
-| 5 | Session Pooler connection string | **Not requested yet**, by instruction. | Owner |
-| 6 | Approval to create the first Owner account | Waiting. | Owner |
-| 7 | Remaining M2 work | Write functions (booking ID, bookings, plan, payments, refunds, approvals, correction-file function, user management, recovery), login / My Account / user screens, first-Owner script, real-Postgres CI job with concurrency tests, real-Supabase verification (RSV-01..11). | Developer |
+### Done in this stage (local only)
+- Sign-in, sign-out, "forgot password" (Owner accounts only, same answer for every address), password-reset link handling, forced change of a temporary password, protected area with a server-side check on every request (active account, role), plain-English errors.
+- Migration 11: the first function an app user can call, with the rule that every new function must have EXECUTE taken from PUBLIC first (test ACC-09/10 check this for all functions).
+- Tests: **294 pass** (191 database + 103 others). Lint, types, format, production build, browser-bundle scan and migration check pass.
 
-### Done so far in M2
-- 10 migration files (`supabase/migrations/20261111000001..10`, about 2,150 lines): 19 tables, 3 views, 10 enums, 59 foreign keys, 75 check constraints, 57 indexes, 24 RLS policies, 97 triggers + 1 on `auth.users`, 25 functions (4 callable by app users).
-- **O7**, **Q9a**, **D5** implemented and tested (see MIGRATION_REVIEW §10).
-- Review guide: `supabase/MIGRATION_REVIEW.md`.
+### Not tested yet (be clear about what this covers)
+- The new screens were smoke-tested **signed out only** (redirects, public pages, headers). A real sign-in needs an account, and none exists. Nothing here has been tested against the real Supabase Auth with a user.
+- `complete_password_change` is tested on the in-memory stand-in (PGlite) only; it is not on the hosted database until migration 11 is approved and applied.
 
-### Still to confirm only on the real Supabase project
-Policies on `storage.objects`, inserting into `storage.buckets`, the trigger on `auth.users`, the real confirmation emails (Secure email change ON; built-in development email delivers only to Supabase team addresses), concurrency behaviour, Supabase Advisors.
+### Still to do in M2
+Write functions (accounts, master data, bookings, plan, payments, refunds, correction files), user-management screens with password re-entry and reasons, recovery and first-Owner scripts, storage upload/download code, a real PostgreSQL 17 CI job (behaviour + concurrency), real-Supabase checks RSV-07, RSV-08, RSV-11, then the sign-off report.
+
+### Approvals needed later
+| Action | Status |
+|---|---|
+| Apply migration 11 and any later migration (dry run first) | Waiting for your approval each time |
+| Rotate the dev Secret Key, then create the first Owner | Not yet; separate approval |
+| Push the new commits | Waiting |
 
 ## Milestones
 | # | Milestone | Status | Approved by owner |

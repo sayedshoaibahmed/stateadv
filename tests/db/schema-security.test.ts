@@ -112,6 +112,7 @@ describe("Row Level Security and privileges (SEC-01..05)", () => {
       order by 1`);
     expect(auth.map((r) => r.proname)).toEqual([
       "booking_overdue",
+      "complete_password_change",
       "is_active_user",
       "normalize_mobile",
       "today_ist",

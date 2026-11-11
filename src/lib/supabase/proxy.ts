@@ -1,13 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getPublicEnv } from "@/lib/env";
+import { proxyRedirect } from "@/lib/auth/routes";
 
 /**
- * Refreshes the Supabase auth session cookies on each request.
+ * Runs on every page request. It (1) refreshes the Supabase session cookies
+ * and (2) sends visitors who are not signed in to the login page.
  *
- * M1: refresh only. Route protection (redirect to /login, forced password
- * change) is added in M2. The proxy is an optimistic check; real
- * authorisation is always enforced in the database (RLS + RPC checks).
+ * This is only the FIRST, quick check (the token is verified by signature,
+ * with no database call). It cannot know whether the account was switched off
+ * a minute ago or must change its password. Those checks, and the role check,
+ * happen on the server for every page and action (src/lib/auth/session.ts),
+ * and the database refuses data to anyone without an active profile.
  */
 export async function updateSession(request: NextRequest) {
   const env = getPublicEnv();
@@ -41,7 +45,21 @@ export async function updateSession(request: NextRequest) {
 
   // Do not add code between client creation and getClaims(): it validates
   // the JWT and triggers the cookie refresh when needed.
-  await supabase.auth.getClaims();
+  const { data } = await supabase.auth.getClaims();
+  const signedIn = Boolean(data?.claims?.sub);
+
+  const { pathname, search } = request.nextUrl;
+  const target = proxyRedirect(pathname, search, signedIn);
+  if (target) {
+    const redirect = NextResponse.redirect(new URL(target, request.url));
+    // Keep any refreshed session cookies and no-cache headers.
+    for (const c of response.cookies.getAll()) redirect.cookies.set(c);
+    response.headers.forEach((value, key) => {
+      if (key.toLowerCase().startsWith("cache-control"))
+        redirect.headers.set(key, value);
+    });
+    return redirect;
+  }
 
   return response;
 }

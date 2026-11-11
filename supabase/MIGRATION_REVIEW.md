@@ -273,3 +273,13 @@ Duplicate-reference / duplicate-screenshot / over-amount **warnings** (FR-PAY-6)
 - 40 "who did it" foreign keys (`created_by`, `updated_by`, `approved_by` …) have no index. Deletes are blocked, so this only affects filtering; revisit with real report queries in the reports work.
 - A change made with the **secret key and no logged-in person** (for example in the Supabase dashboard) is allowed on non-money master data and is audited as "system". Money records, accounts and files still require a real active user. This is why the secret key must stay private and be rotated after any exposure.
 - The audit log for the email copy shows the actor as the system (Supabase Auth), with the user as the target.
+
+## 13. Migrations after the first apply (2026-11-11)
+
+Migrations 01–10 were applied to the dev project on 2026-11-11 and verified (see PROGRESS). Everything below is **written locally and not applied**.
+
+### 13.1 Migration 11 - account self-service
+- Adds `complete_password_change()`: clears only the caller's own "must change password" flag (SECURITY DEFINER, empty search_path, identity from `auth.uid()`, refused for no session / inactive profile).
+- **New rule for every later function:** PostgreSQL gives EXECUTE to PUBLIC on new functions, and migration 08 only removed the old ones. Each new function therefore starts with `revoke all ... from public, anon, authenticated` and grants back only what it needs. Tests ACC-09 and ACC-10 enforce this for all functions.
+- PostgreSQL 17: only plain PL/pgSQL and standard GRANT/REVOKE; nothing version-specific.
+- Applying it: dry run first, then your approval.

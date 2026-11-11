@@ -302,6 +302,15 @@ These cannot be proven by the in-memory database; see supabase/MIGRATION_REVIEW.
 | RSV-10 | exposed API surface | only the allow-listed functions appear as RPC; no table is writable |
 | RSV-11 | time handling around midnight IST | dates and locks switch at IST midnight |
 
+### 2.13c Sign-in and account self-service (implemented 2026-11-11)
+| ID | Case | Level | Status |
+|---|---|---|---|
+| AUTH-U1..U12 | form rules, safe redirects, public pages, error wording (`tests/unit/auth.test.ts`) | unit | passing |
+| ACC-01..08 | `complete_password_change`: own flag only, audited, idempotent, refused for no session / disabled / anon, no direct write | PGlite | passing |
+| ACC-09, ACC-10 | no function executable by PUBLIC; every function has a fixed search path | PGlite | passing |
+| AUTH-S1 | signed-out smoke test of the built app: protected pages redirect, login and forgot-password open, no signup route, security headers | built app, no database | passed once (manual) |
+| AUTH-R1..R6 | real sign-in, wrong password, disabled user, reset link, expired link, forced password change | **hosted Supabase** | not run (needs an account) |
+
 ### 2.14 UI / E2E
 Flows F1–F10 (UI spec §4) on desktop and mobile. Plus: keyboard-only booking creation, a throttled network during upload, the offline banner, plain-English errors, and the dashboard showing exactly one Total Collection (Approved) card and a separate Waiting card (Q17).
 
