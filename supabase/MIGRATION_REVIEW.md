@@ -1,6 +1,6 @@
 # M2 — Database migration review guide
 
-**Status (updated 2026-11-11): migrations 01–18 are APPLIED to the dev Supabase project and verified** (evidence: `HOSTED_VERIFICATION.md` section 0h). The text below was written before 11–18 were applied and is kept as the review record; where it says "not applied", read "applied on 2026-11-11 after the owner's approval".
+**Status (updated 2026-11-12): migrations 01–19 are APPLIED to the dev Supabase project and verified** (evidence: `HOSTED_VERIFICATION.md` sections 0h and 0i). The text below was written before 11–18 were applied and is kept as the review record; where it says "not applied", read "applied on 2026-11-11 after the owner's approval".
 
 **Updated 2026-11-11:** your decisions O7 (verified own-email change), Q9a (correction files) and D5 (reversal protection) are now in the migration files. Section 10 shows exactly what changed, file by file. Sections 1-9 describe the current files.
 
@@ -454,7 +454,7 @@ Everything below was checked **read-only** against the hosted project (PostgreSQ
 ### 15.6 Rehearsal as the hosted role (new evidence)
 The same 355 database tests and 18 simultaneous-request tests were run on real PostgreSQL 17.11 with **migrations 01-18 executed as a plain, non-superuser role named `postgres`** (CREATEROLE, BYPASSRLS, owns what it creates), exactly the hosted role's attributes: **all pass.** A first attempt with a differently named role failed in migration 08 ("permission denied to change default privileges") - a flaw of that attempt, not of the migrations: migration 08 says `alter default privileges for role postgres`, so the rehearsal role must really be named `postgres`. This rehearsal does **not** reproduce Supabase's `supautils` extension, PostgREST, the real Auth and Storage services, or object ownership by `supabase_admin`.
 
-## 16. Migration 19: re-authentication grants (O3), written and tested locally, NOT applied to hosted
+## 16. Migration 19: re-authentication grants (O3), APPLIED to hosted 2026-11-12 and verified (HOSTED_VERIFICATION 0i)
 
 File: `supabase/migrations/20261111000019_reauth_grants.sql`. Approved by the owner 2026-11-11 as hardening for Security Advisor finding F1 (`SECURITY.md` section 15), then revised after the independent review (M1 grants bound to the exact operation, M2 attempts reserved atomically before the password, L2 no grant id returned, L3 audit rows readable by Owners only). Migrations 01-18 are untouched. The planned M3 dashboard-functions migration is now number **20**.
 

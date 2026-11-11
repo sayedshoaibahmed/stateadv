@@ -7,7 +7,7 @@ Rules for every check
 - Test accounts use addresses you control (`you+owner-test@…`). Delete nothing: switch test people off instead; the system never deletes records.
 - Do not mark a check as passed unless its "pass" line was actually observed.
 
-## 0. Applying migrations 11-18 (APPLIED and verified 2026-11-11, see 0h)
+## 0. Applying migrations 11-19 (11-18 APPLIED and verified 2026-11-11, see 0h; 19 APPLIED and verified 2026-11-12, see 0i)
 
 Commit and push the current local changes first and wait for GitHub Actions to be green, so that the files applied are the files on GitHub.
 
@@ -78,9 +78,20 @@ Data after 18: stay types 3, payment apps 9, audit rows 16 (12 from before + 4 f
 
 The safety export taken before the apply is in `stateadv-backups` (outside the repository). This evidence is local and uncommitted until the owner approves a commit.
 
-### 0i. Migration 19 (O3 re-authentication grants): written and tested locally, NOT applied
+### 0i. Migration 19 (O3 re-authentication grants): APPLIED to the hosted project 2026-11-12 (evidence)
 
-Separate approval needed. Nothing here has been run on the hosted project. Plan when approved: (1) commit and push with CI green; (2) refresh the safety export (the schema changes); (3) `npm run preflight:hosted -- --pending=20261111000019` must pass P1-P9 (P9: the five functions to be replaced still have exactly migration 12's source on hosted, no name clash for the new table, functions and policy); (4) apply it (additive, no destructive statement) with the usual staged `db push` from a scratch folder; (5) post-apply comparison with a local rebuild (section 0j): expected history 19, tables 21, functions 89, callable by signed-in users 38 and by anon 0, columns 314, constraints 191, indexes 84, triggers 105 (104 public + 1 on auth.users), policies 26, relations 30, rows unchanged; (6) anonymous probes of the four new functions and the table (all refused); (7) the app code that issues grants must be deployed together with it. Full table in `MIGRATION_REVIEW.md` section 16. With only one Owner the real end-to-end check (a second Owner being switched off after a password re-entry) cannot be done on hosted; it is covered locally by REA-*, CON-19 and CON-20.
+Approved by the owner after: commit `91a4d13` pushed with all four CI jobs green; a fresh read-only safety export taken and verified against the live database (`stateadv-backups/hosted-export-2026-11-11T18-43-30`, outside the repository, no credentials); `npm run preflight:hosted -- --pending=20261111000019` PASSED P1-P9 (hosted history exactly the first 18 files, 019 the only pending file and identical on `origin/main`, none of the new objects present, the five functions to be replaced still equal migration 12's source).
+
+Applied with `supabase db push --skip-vault --yes` after a dry run that listed exactly `20261111000019_reauth_grants.sql` for the project `prfarsersxoeavcqydez`; exit 0, no error, nothing else applied (no migration 020).
+
+**Post-apply verification (read-only).**
+- `npm run catalog:local` rebuilt migrations 01-19 on a throw-away PostgreSQL 17; `npm run catalog:compare` then found hosted **identical in every category**: history 19, columns 314, constraints 191, indexes 84, triggers 105, policies 26, functions 89 (definitions, security-definer flags, settings), function privileges 89, table privileges 183, column privileges 303, RLS 21, enums 8, views 3, relations 30.
+- Explicit numbers: 21 tables (all with RLS), 89 functions, **38 callable by signed-in users, 0 by anon, 0 by PUBLIC**, 26 policies, 105 triggers (104 public + 1 on `auth.users`).
+- New objects: `reauth_grants` exists, RLS on, no policy, no privilege for anon, signed-in users, service_role or PUBLIC, with the no-delete and no-truncate triggers; `reauth_begin`, `issue_reauth`, `record_reauth_failure` executable by `service_role` only; `consume_reauth` by nobody; all SECURITY DEFINER with an empty search_path; no `reauth_is_locked`; the restrictive policy `"reauth audit rows are for owners"` on `audit_logs` exists.
+- Data intact, compared with the pre-apply export: stay types 3, payment apps 9, resorts 4, C/O categories 4, the Owner's profile and all 18 audit rows identical; one Auth user, one profile; no grants, no re-authentication audit rows, no bookings, no files. The Owner is still active, role owner, password already changed, linked to the same Auth user.
+- Anonymous REST (publishable key): reading `reauth_grants`, `audit_logs`, `user_profiles`, `resorts` -> 401 permission denied; calling `reauth_begin`, `issue_reauth`, `record_reauth_failure`, `consume_reauth` and the five `profile_*` functions -> not found / refused.
+
+**Not verified on hosted (needs a second Owner):** the end-to-end use of a grant by a real session (a second Owner being switched off after a password re-entry) and the real Supabase Auth password check from the app. These are covered locally by REA-01..16, CON-19, CON-20 and REAUTH-U1..13. The app code that issues the grants is already on `main` (commit `91a4d13`); it is not deployed (nothing is deployed yet).
 
 ### 0j. Post-apply comparison with a local rebuild (any migration, no hard-coded numbers)
 

@@ -94,7 +94,7 @@ Classification key: **SAFE**, **NEEDS REVIEW** (protection unclear or incomplete
 None of these is a blocker; all are about defence in depth. The order is by value.
 
 **F1: the acting Owner's password re-entry (O3) is enforced only by the server action `gate()`, not by the database.**
-**Status 2026-11-11: fixed locally by migration 19 (`20261111000019_reauth_grants.sql`, single-use re-authentication grants bound to the exact operation, attempts reserved before the password; see `SECURITY.md` section 15, revised after the independent review M1/M2/L2/L3). Not yet committed and not applied to hosted: until it is applied, the four functions (and `profile_create` for an Owner) keep the weakness described below.**
+**Status 2026-11-12: fixed by migration 19 (`20261111000019_reauth_grants.sql`: single-use re-authentication grants bound to the exact operation, attempts reserved before the password; see `SECURITY.md` section 15), committed in `91a4d13` and APPLIED to the hosted project and verified (`HOSTED_VERIFICATION.md` 0i). The four `profile_*` functions and `profile_create` (for an Owner) now refuse a protected action without a grant. The text below describes the weakness as it was before.**
 Affected: `profile_update` (role change), `profile_set_active`, `profile_reset_password`, `profile_change_email`.
 Evidence: `src/lib/accounts/actions.ts` `gate()` calls `verifyPassword(...)`; none of the four SQL functions checks it
 (the database cannot see a password). The database does enforce: another active Owner is required for any action on an

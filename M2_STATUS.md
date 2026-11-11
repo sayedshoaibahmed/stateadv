@@ -5,8 +5,8 @@ M2 is **one milestone**. This is a working audit, generated from the data in the
 | Item | Value |
 |---|---|
 | Last updated | 2026-11-11 |
-| Branch | `main` = `origin/main` at `cc94490` (CI green on all four jobs; reported by the owner). The only uncommitted changes are documentation (this file, HOSTED_VERIFICATION.md) |
-| Hosted dev database | PostgreSQL 17.11; **migrations 01-18 applied and verified item by item (2026-11-11)**; no Owner and no data yet |
+| Branch | `main` = `origin/main` at `91a4d13` (CI green on all four jobs; reported by the owner). The only uncommitted changes are documentation updates recording the hosted apply of migration 19 |
+| Hosted dev database | PostgreSQL 17.11; **migrations 01-19 applied and verified item by item (019 on 2026-11-12)**; the first Owner exists (password changed); no other user and no business data |
 | Hosted Auth (read-only) | signup disabled; email login only; **no Owner account exists** |
 
 ## Headline
@@ -14,11 +14,11 @@ M2 is **one milestone**. This is a working audit, generated from the data in the
 | Measure | Result |
 |---|---|
 | M2 requirements in scope | **71** (plus 3 that belong to later milestones) |
-| Fully complete (verified at every level possible without your approval) | **11** |
+| Fully complete (verified at every level possible without your approval) | **12** |
 | Built and tested locally / on real PostgreSQL 17, **not yet verified on the hosted project** | **56** |
-| Not done | **4** |
-| **Built and locally verified** | **94%** |
-| **Fully verified (counting hosted checks)** | **15%** |
+| Not done | **3** |
+| **Built and locally verified** | **96%** |
+| **Fully verified (counting hosted checks)** | **17%** |
 
 **M2 is NOT complete.** Migrations are applied. Remaining, each needing you: replace the compromised secret key, then create the real Owner (separate approvals); the dashboard checks (secure email change, sessions, backups); two mailboxes and test users for the real-login checks (RSV-06/07/08); browser run of the settings screens; commit of the documentation.
 
@@ -52,7 +52,7 @@ Status key: ✅ complete · 🟡 built and tested locally, hosted verification p
 | B6 | Protected actions on an Owner only by another active Owner (O1) | guard + explicit checks in 12 | OWN-11..13, ACM-14/18/20 (PGlite + PG17) | — | 🟡 |
 | B7 | Only an Owner gives the Owner role; nobody changes their own role (O2) | guard + `profile_update` | ACM-02/08/09/10 | — | 🟡 |
 | B8 | Reason (10+ chars) + the acting person's own password + dashboard notice (O3) | `gate()` in actions.ts; `verifyPassword`; `describeOwnerEvent`; home page | ACU-01..12 (rules, wording); ACM-03/10/21 (reason in audit) | The password check calls Supabase Auth: untested against the real service | 🟡 |
-| B14 | Protected Owner actions need the database's re-authentication grant (O3): single use, 60 seconds, bound to the acting user, the action, the account AND the exact operation; only the server (secret key) can issue it; attempts are reserved under a lock before the password is tried (5 per 15 minutes); audit rows readable by Owners only | migration 19; src/lib/accounts/reauth.ts; gate() in src/lib/accounts/actions.ts | REA-01..16 (incl. the 15-minute window), CON-19/20 (real PG17), REAUTH-U1..13, 24 mutation checks | Apply to hosted needs approval; the real Supabase Auth password check needs a second Owner | 🟡 |
+| B14 | Protected Owner actions need the database's re-authentication grant (O3): single use, 60 seconds, bound to the acting user, the action, the account AND the exact operation; only the server (secret key) can issue it; attempts are reserved under a lock before the password is tried (5 per 15 minutes); audit rows readable by Owners only | migration 19; src/lib/accounts/reauth.ts; gate() in src/lib/accounts/actions.ts | REA-01..16 (incl. the 15-minute window), CON-19/20 (real PG17), REAUTH-U1..13, 24 mutation checks | Applied to hosted 2026-11-12 (RSV-18); the real Supabase Auth password check and a real grant used by a real session need a second Owner | 🟡 |
 | B9 | Owner recovery by server script (O4) | `recover_owner_account` (service role only); scripts/recover-owner.ts | ACM-23..26 (PGlite + PG17); REC-01..04 (fakes) | Script never run against hosted | 🟡 |
 | B10 | Works with exactly one Owner; visible notice (O5) | /users and home page notices; guard | OWN-*; FUO-DB-3 | — | 🟡 |
 | B11 | Second Owner added later in the app (O6) | AddUserForm + `profile_create` (reason + password) | ACM-02/03, ACU-03/04 | Browser run | 🟡 |
@@ -133,7 +133,7 @@ Status key: ✅ complete · 🟡 built and tested locally, hosted verification p
 | RSV-15 | Who may decide payments and refunds; repeated and unknown-id decisions (second approver) | approve/reject/reverse functions (migration 15) | PAF-20..22, 35, 36 and PAF-50..55 (no session, unknown user, anon, switched-off user, unknown id, repeats, session-stamped approver) | Real two-person run in the browser needs two logins (after the first Owner exists) | 🟡 |
 | RSV-16 | Unauthenticated access to every settings and user page from a production build | local production server against the hosted project | done 2026-11-11: /settings/resorts, /settings/co, /settings/stay-types, /users all redirect to /login?next=...; /login and /api/health answer 200; sign-up refused (422 signup_disabled) | Logged-in screens need migrations 11-18 and accounts | ✅ |
 | RSV-17 | Migrations 11-18 applied to the hosted project in stages and verified item by item against a local rebuild | hosted | done 2026-11-11: history 18; every catalog category identical to the local build; 85 functions, 38 for signed-in users, 0 for anon; 4 placeholder resorts; 4 C/O categories; reference data intact | Functions have not yet been exercised by a signed-in user (needs the Owner) | ✅ |
-| RSV-18 | Migration 19 (O3 re-authentication grants) applied to the hosted project and verified with preflight P1-P9 and a catalog comparison against a local rebuild | hosted | - | Written and tested locally (tooling rehearsed on a local stand-in for hosted); needs the owner's approval to commit, then to apply. With one Owner the real end-to-end use cannot be shown on hosted | ❌ |
+| RSV-18 | Migration 19 (O3 re-authentication grants) applied to the hosted project and verified with preflight P1-P9 and a catalog comparison against a local rebuild | hosted | done 2026-11-12: preflight P1-P9 passed; applied alone; every catalog category identical to the local rebuild (history 19, 21 tables, 89 functions, 38 callable by signed-in users, 0 by anon, 26 policies, 105 triggers); data, Owner and 18 audit rows unchanged; anonymous access refused | A real grant used by a real session needs a second Owner | ✅ |
 
 ## What I need from you (nothing below has been done)
 

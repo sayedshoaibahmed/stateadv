@@ -239,7 +239,7 @@ Never in browser code (the bundle scan checks), never for ordinary reads or writ
 - **Open items that need the dashboard (not the API):** Secure email change must be ON; session lifetime / refresh-token rotation must be as in section 2. Until you confirm them, FR-AUTH-2 and FR-AUTH-16 are **not verified**.
 - **Still open from before:** the dev Secret Key shared in a chat must be replaced before the first Owner and before production (not done; needs your action); the occasional local-only test-worker crash (MIGRATION_REVIEW 14.6).
 
-## 15. Password re-entry enforced by the database (O3; migration 19, 2026-11-11, written and tested locally, NOT yet applied to hosted)
+## 15. Password re-entry enforced by the database (O3; migration 19, applied to the hosted project 2026-11-12; end-to-end use on hosted not yet shown: needs a second Owner)
 
 **Problem (Security Advisor audit, finding F1):** the "re-enter your own password" step for protected Owner actions existed only in the Next.js server action. Anyone holding a signed-in Owner's session token could call `profile_set_active`, `profile_reset_password`, `profile_change_email`, `profile_update` (role) or `profile_create` (Owner) directly and skip it.
 
