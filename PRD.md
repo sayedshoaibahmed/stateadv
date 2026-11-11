@@ -510,3 +510,6 @@ You asked for extra protection for Owner accounts. To make that protection actua
 | O7 | An Owner may change their **own** email only through a verified Auth process: current password, confirmation link to the new address (and the old address with Secure email change), then the profile takes only the confirmed address. | Without it, the sole Owner could never change their email in the app. | Recovery script only (rejected by owner). |
 
 With these rules, a Manager can still add, edit, disable, enable and reset **Manager** accounts, exactly as decided in Q10.
+
+## 13. Build notes (2026-11-11)
+Interpretations made while building M2 where this document was silent are listed in DATABASE_SCHEMA.md section 5a (payments on cancelled bookings, allowed status steps, minimum reason lengths, payment-app rules, refunds on active bookings). They are open for the owner to confirm or change.

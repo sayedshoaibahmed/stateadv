@@ -325,3 +325,25 @@ Flows F1–F10 (UI spec §4) on desktop and mobile. Plus: keyboard-only booking 
 - No failing tests. New code has relevant tests.
 - Financial, refund, cancellation and security tests have **no skips**.
 - Results are summarised in PROGRESS.md and the milestone report.
+
+## 2.16 M2 test inventory (2026-11-11) — what each test ID proves and at which level
+
+| IDs | What | PGlite | Real PG 17 (local) | Hosted |
+|---|---|---|---|---|
+| AUTH-U1..U12 | sign-in forms, safe redirects, wording | unit | — | — |
+| ACC-01..10 | self-service password flag; **no function open to PUBLIC; fixed search path** | ✅ | ✅ | after apply |
+| ACM-01..27 | account functions, Owner rules O1–O7, recovery | ✅ | ✅ | after apply |
+| MDF-01..11 | master data functions | ✅ | ✅ | after apply |
+| BKF-01..42 | bookings, IST nights, plan revisions (D2), cancellation, preview, privileges | ✅ | ✅ | after apply |
+| PAF-01..51 | payments, refunds (D1), approvals, reversal protection (D5), proofs, corrections (Q9a), privileges | ✅ | ✅ | after apply |
+| FUO-DB-1..3 | first Owner insert rules | ✅ | ✅ | real run needs approval |
+| STO-DB1..8 | storage policies (names, read, no replace/delete) | ✅ | ✅ | RSV-07 |
+| CON-01..11 | simultaneous requests: booking numbers, double Save, double approval, refund limit, Owner race, reversal vs refund, payment numbers, same-version edits, plan changes, same file | skipped (one connection) | ✅ | after apply |
+| ACU-01..12, STO-U1..U10, ERR-01..04, DBC-01..04, FUO-01..06, REC-01..04 | rules and script logic with stand-ins | unit | — | — |
+
+**Mutation checks**: 31 weakened copies of the migrations are all caught by the PGlite tests; five locking weakenings were run against real PostgreSQL 17 (see MIGRATION_REVIEW §13.6).
+
+**How to run**
+- Everything quick (PGlite): `npm test`
+- Real PostgreSQL 17 (start a throw-away server, then): `STATEADV_PG_URL=postgres://… npm run test:pg17`. The harness refuses any Supabase host.
+- Hosted checks: see `supabase/HOSTED_VERIFICATION.md`.

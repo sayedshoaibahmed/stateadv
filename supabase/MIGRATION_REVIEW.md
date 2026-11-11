@@ -283,3 +283,35 @@ Migrations 01–10 were applied to the dev project on 2026-11-11 and verified (s
 - **New rule for every later function:** PostgreSQL gives EXECUTE to PUBLIC on new functions, and migration 08 only removed the old ones. Each new function therefore starts with `revoke all ... from public, anon, authenticated` and grants back only what it needs. Tests ACC-09 and ACC-10 enforce this for all functions.
 - PostgreSQL 17: only plain PL/pgSQL and standard GRANT/REVOKE; nothing version-specific.
 - Applying it: dry run first, then your approval.
+
+### 13.2 Migration 12 — account management
+Adds `profile_create / update / change_email / set_active / reset_password`, `active_owner_count`, `recover_owner_account` (service role only) and the internal helpers `require_reason`, `audit_account_action`. **Replaces** `audit_row_change()` (migration 05) so it also stores the reason passed in `app.reason` (unchanged behaviour when none is set).
+- Owner rules are enforced twice: explicitly in the function (for example `profile_reset_password` refuses a Manager even when the "must change password" flag is already on, which the table guard alone would not catch) and by `guard_user_profiles` underneath.
+- Nothing destructive. PostgreSQL 17: plain PL/pgSQL.
+
+### 13.3 Migration 13 — master data functions
+Resort, guest, agent/partner, stay type, payment app. Reads `storage.objects` to check a resort logo exists (the hosted `postgres` role has SELECT and BYPASSRLS there — checked read-only). Payment apps are case-insensitively unique per method (the table rule is case-sensitive).
+
+### 13.4 Migration 14 — bookings and payment plan
+`create_booking` (idempotent; recalculates nights and amounts; Booking ID from a locked counter row), `update_booking`, `set_booking_status`, `cancel_booking`, `change_cancellation_charge`, `set_payment_schedule`, `plan_preview`, and the internal `apply_plan_change` (TRD 5.2a). JSON input is read by small validating helpers (`pl_*`); a timestamp without a time zone is refused so nothing depends on a server setting.
+- *Known cost*: the overdue/unpaid amount is computed per booking from `expected_entries`, `payments`, `refunds` (not through `booking_overdue()`, which scans every booking).
+
+### 13.5 Migration 15 — payments, refunds, approvals, proofs, corrections
+Adds the functions listed in TEST_PLAN §2.16 and the internal `money_position`, `parse_files`, `check_provider`, `insert_proofs`, `decide_payment`, `decide_refund`, `proof_parent`.
+- **Lock order**: booking first, then the payment/refund row, everywhere.
+- A proof row can only point at a file that really exists in `payment-proofs`, in THIS booking's folder, whose recorded size and type match.
+- Verified on real PostgreSQL 17.11: all rules, and under simultaneous requests (CON-01..11).
+
+### 13.6 Real PostgreSQL 17 results (local throw-away server, 2026-11-11)
+| Check | Result |
+|---|---|
+| Migrations 01–15 apply cleanly | yes |
+| All database tests (300) | pass |
+| Concurrency tests (11) | pass |
+| Locking weakened in a copy: no account-change lock; no booking lock in the refund guard AND function; booking numbers by read-then-write | each is **caught** by the concurrency tests |
+| Locking weakened in only one of two layers (refund guard only; function only; payment-row lock in approval) | **not** caught — correct: a second layer (the other lock, or the status guard) still protects the outcome |
+
+Differences between this server and Supabase that remain: migrations run as a superuser here (the hosted `postgres` is not one); Supabase's `supautils` permission exceptions, PostgREST and the real Auth/Storage services are not present.
+
+### 13.7 Stand-in changes made in this stage
+`storage.objects` now has the `metadata` column and the unique (bucket, name) index that the real service has; roles are created idempotently for the real-server backend.

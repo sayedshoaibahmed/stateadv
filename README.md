@@ -80,3 +80,10 @@ tests/
 - All data access goes through Row Level Security. All writes go through database functions (from M2).
 - Storage buckets are private. Files are shown with short-lived signed URLs.
 - No destructive migrations without explicit approval. No production deployment without the owner's approval.
+
+## Tests (M2)
+
+- `npm test` — everything quick (database tests run on PGlite, an in-memory PostgreSQL).
+- `npm run test:pg17` — the same database tests plus the concurrency tests on a **real PostgreSQL 17**. Set `STATEADV_PG_URL` to a throw-away server (CI uses a `postgres:17` container). The harness refuses any Supabase address.
+- `npm run check:mutations` — weakens the migrations one rule at a time and checks the tests notice.
+- Status of every M2 requirement: `M2_STATUS.md`. Checks on the real Supabase project: `supabase/HOSTED_VERIFICATION.md`.

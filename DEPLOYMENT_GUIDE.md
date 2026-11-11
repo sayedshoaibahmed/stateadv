@@ -168,3 +168,32 @@ Estimate for the planned stack (prices change; recheck at signup):
 - [ ] Owner reset email tested. Recovery script tested on staging.
 - [ ] Real resorts entered with codes and logos.
 - [ ] Owner explicitly approved the production deployment.
+
+## 12. M2 operating instructions (2026-11-11)
+
+### 12.1 Applying migrations (development project) — only after the owner's approval each time
+1. `npx supabase migration list --remote=<url>` and `db push --dry-run --skip-vault --remote=<url>` — the dry run must list exactly the expected files.
+2. After approval: `db push --skip-vault --yes --remote=<url>`. Each file is one transaction; a failure leaves the earlier files applied and records nothing for the failed one. There is no "down" migration: undoing means a database reset, which needs separate approval.
+3. Afterwards, read-only checks: migration history, counts of tables/functions/policies/triggers, privileges (SEC-04 list), `db advisors`.
+4. Keep the connection string only in `.env.local`; never paste it into chat, issues or logs. Reset the database password and remove the variable when this work is finished.
+
+### 12.2 Creating the first Owner — once, with explicit approval
+1. Replace the dev Secret Key (Supabase dashboard → Project Settings → API Keys): create a new one, delete the old one, put the new one into `.env.local` yourself.
+2. `npx tsx scripts/create-first-user.ts --dry-run` — checks everything, creates nothing.
+3. `npx tsx scripts/create-first-user.ts` — in your own terminal window. It asks for the Owner's name and email, then the temporary password through a hidden prompt, then `CREATE OWNER`. It refuses to run if any account exists. The Owner must choose a new password at the first sign-in.
+
+### 12.3 Adding people (Settings → People)
+- A Manager can add, edit, switch off/on and reset the password of **Managers**. Only an Owner can add an Owner, promote someone to Owner, or do anything to an Owner account; those actions need a written reason (10+ characters) and the acting Owner's own password, and appear as a notice on everyone's home page.
+- The temporary password is shown **once** on screen. Give it to the person privately.
+- Two Owners are recommended (O4/O6). While only one exists, Owners see a notice.
+
+### 12.4 Recovery (no Owner can sign in)
+1. "Forgot password" on the sign-in page (Owner accounts only).
+2. Another Owner resets the password (People → the person → Reset password).
+3. Last resort, on the project owner's own computer: `npx tsx scripts/recover-owner.ts --dry-run`, then without `--dry-run` (add `--reset-mfa` to remove a lost two-step device). It switches the account on, sets a temporary password (shown once) and writes `owner_recovered` with your reason.
+
+### 12.5 Email
+The built-in Supabase email sender delivers only to Supabase-team addresses and is rate-limited. Sign-in and temporary passwords do not depend on email. "Forgot password" and the verified email change do; production needs a custom SMTP sender (Q11). "Secure email change" must stay ON.
+
+### 12.6 Real-system checks
+`supabase/HOSTED_VERIFICATION.md` lists each check, what it needs, and what a pass looks like. None of them has been run yet.

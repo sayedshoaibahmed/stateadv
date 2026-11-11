@@ -196,3 +196,31 @@ Atomic multi-table financial operations (booking + ID + plan; approval + history
 1a. No Owner can log in: follow DEPLOYMENT_GUIDE §7.4 (Owner account recovery).
 2. Leaked key: rotate it in Supabase, update Vercel env, redeploy, review logs.
 3. Wrong data: never delete. Correct with an edit (reason), reject, reverse or refund, so the audit trail shows both.
+
+## 12. M2 additions (2026-11-11) — implemented locally, hosted verification pending
+
+### 12.1 Where the secret key is used (complete list)
+1. Supabase Auth admin calls for user management (create login, delete a login that the database refused, ban/unban, set a temporary password, change another person's email).
+2. "Forgot password": a server-only lookup of `role, is_active` for the typed email, to decide whether to send an email (Owner accounts only). The answer shown is always the same.
+3. Removing **one** just-uploaded file that failed the content check and is not saved against any record.
+4. The one-time scripts (first Owner, recovery), run on the project owner's own computer.
+Never in browser code (the bundle scan checks), never for ordinary reads or writes, never printed or logged.
+
+### 12.2 Rules every database function follows (tests enforce them)
+- `SECURITY DEFINER` with an empty `search_path` (ACC-10); the caller comes from `auth.uid()` only, never from a parameter.
+- `EXECUTE` is taken from PUBLIC first and granted back only to `authenticated` (ACC-09, SEC-04). PostgreSQL gives PUBLIC execute on new functions by default; migration 08 only handled the functions that existed then.
+- Inputs arrive as JSON and are validated field by field (type, range, length, format); an unknown key is ignored; amounts are recalculated by the database.
+- Money-changing functions lock the booking row first; the guard triggers re-check every rule underneath (defence in depth).
+
+### 12.3 Things the database cannot do (the server action does) and how they are covered
+- **Re-entering the acting Owner's password (O3)**: server action `gate()`, using a separate non-persisting Supabase client. The rule "which actions are protected" is unit-tested (ACU-01..04); the call to the real Supabase Auth is **not yet tested**.
+- **Real file type**: the server downloads the uploaded file and checks its first bytes (STO-U1..U4); the database function also compares size and type with what Storage itself recorded (`parse_files`). Whether Supabase Storage names these metadata fields `size` and `mimetype` is **unverified** (the check fails closed, so a wrong guess blocks uploads instead of letting bad files in) — RSV-07.
+- **Forced password change**: `complete_password_change` cannot prove a password really changed. It is a reminder for the account holder, not a barrier against themselves.
+
+### 12.4 Known limits and residual risks
+- A dev Secret Key was once pasted into a chat. Accepted by the project owner for the dev project; it MUST be replaced before the real Owner is created and before production. The first-Owner script asks about this before it does anything.
+- Dev-only advisories: 3 in the `shadcn` command-line tool (devDependency; the fix is a breaking major version). Production dependencies: 0.
+- No rate limiting of our own on password re-checks: Supabase Auth's limits apply.
+- `GET /auth/blocked` ends the caller's own session (a harmless "sign-out CSRF").
+- The built-in Supabase email sender reaches only Supabase-team addresses and is rate-limited; production needs a custom sender (Q11).
+- The migrations run on a superuser in my PostgreSQL 17 tests, but as the non-superuser `postgres` on Supabase. Supabase's own settings allow the storage policies and the `auth.users` trigger (verified for 01–10). Migrations 11–15 create only functions, grants and a replaced trigger function, but the first apply is still the real proof.

@@ -248,3 +248,9 @@ RPC errors use codes (`STALE_RECORD`, `ID_FIELDS_LOCKED`, `PLAN_TOTAL_MISMATCH`,
 ## 10. Observability
 - Vercel logs with request ids (no personal data).
 - `/settings/system`: PDF queue, last backup time, integrity check results (plan sums, auth/profile match, orphan files).
+
+## 12. Implementation notes (2026-11-11)
+- Account functions: see DATABASE_SCHEMA §5a for what differs from §5.7 above (no separate `log_account_action`; `profile_reset_password`, `profile_change_email`, `complete_password_change` added).
+- Server actions use the signed-in user's own client for every database call; the secret key is used only where SECURITY §12.1 lists.
+- With Cache Components enabled, the root layout wraps pages in `<Suspense>`; nothing about who is signed in is cached.
+- Database tests run on two engines: PGlite (fast, default) and a real PostgreSQL (set `STATEADV_PG_URL`; CI uses `postgres:17`). Concurrency tests run only on the real server.

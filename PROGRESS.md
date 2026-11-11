@@ -3,32 +3,31 @@
 Last updated: 2026-11-11
 
 ## Current status (updated 2026-11-11)
-**M2 – Database and Authentication is ONE milestone, in progress.** Full requirement-by-requirement audit: `M2_STATUS.md`.
+**M2 – Database and Authentication is ONE milestone, in progress, NOT complete.** Full audit: `M2_STATUS.md` (52 in-scope requirements: 3 fully complete, 46 built and tested locally awaiting hosted verification, 3 not done).
 
-### Where things stand
-- **Pushed to GitHub:** six reviewed commits up to `92ecd3d`; both CI jobs passed.
-- **Applied to the dev Supabase project (`prfarsersxoeavcqydez`, PostgreSQL 17.11):** migrations 01–10, verified read-only (19 tables, 3 views, 10 enums, 25 functions, 97 triggers, 24 policies, 3 private buckets, trigger on `auth.users`). Advisors: no errors or warnings. Anonymous access denied.
-- **Written locally, NOT applied, NOT pushed:** migration 11 (`complete_password_change`) and the first part of the sign-in screens (below).
-- **No Owner account exists.** Hosted Auth: signup disabled, email login only.
-
-### Done in this stage (local only)
-- Sign-in, sign-out, "forgot password" (Owner accounts only, same answer for every address), password-reset link handling, forced change of a temporary password, protected area with a server-side check on every request (active account, role), plain-English errors.
-- Migration 11: the first function an app user can call, with the rule that every new function must have EXECUTE taken from PUBLIC first (test ACC-09/10 check this for all functions).
-- Tests: **294 pass** (191 database + 103 others). Lint, types, format, production build, browser-bundle scan and migration check pass.
-
-### Not tested yet (be clear about what this covers)
-- The new screens were smoke-tested **signed out only** (redirects, public pages, headers). A real sign-in needs an account, and none exists. Nothing here has been tested against the real Supabase Auth with a user.
-- `complete_password_change` is tested on the in-memory stand-in (PGlite) only; it is not on the hosted database until migration 11 is approved and applied.
-
-### Still to do in M2
-Write functions (accounts, master data, bookings, plan, payments, refunds, correction files), user-management screens with password re-entry and reasons, recovery and first-Owner scripts, storage upload/download code, a real PostgreSQL 17 CI job (behaviour + concurrency), real-Supabase checks RSV-07, RSV-08, RSV-11, then the sign-off report.
-
-### Approvals needed later
-| Action | Status |
+### What exists, and where it has been verified
+| Level | State |
 |---|---|
-| Apply migration 11 and any later migration (dry run first) | Waiting for your approval each time |
-| Rotate the dev Secret Key, then create the first Owner | Not yet; separate approval |
-| Push the new commits | Waiting |
+| **Hosted dev project** (PostgreSQL 17.11) | Migrations **01–10 applied** and verified read-only. Migrations **11–15 are NOT applied** (dry run on 2026-11-11 lists exactly those five). No Owner account. Signup disabled. |
+| **GitHub** | `origin/main` is at `92ecd3d`. **Nothing newer has been pushed.** The new PostgreSQL 17 CI job has therefore never run on GitHub. |
+| **Local, real PostgreSQL 17.11** (throw-away server) | All 300 database tests + 11 concurrency tests pass (311). The concurrency tests fail when the locks are removed (checked). |
+| **Local, PGlite** | 443 tests pass (11 concurrency tests are skipped there: they need real connections). Mutation check: 31 of 31 weakened versions caught. |
+| Lint, types, format, production build, browser-bundle scan, migration check | pass |
+| `npm audit --omit=dev` | 0 findings. Dev-only: 3 advisories inside the `shadcn` command-line tool (not shipped; the suggested fix is a breaking major version). |
+
+### Built in M2 so far (all local)
+- Sign in/out, forgot password (Owner accounts only), reset link, forced password change, My Account (own password, own email by the verified process), People pages (add, edit, role, switch on/off, reset password, change email), history, Owner notices on the home page.
+- Migrations 11–15 add 57 functions (82 in schema `public` in total; 37 are callable by signed-in users, the rest are internal helpers or table guards): accounts, master data, bookings, plan, payments, refunds, approvals, proof files, correction files. All writes go through them; app users still have no direct table write.
+- Storage code (server-chosen names, signed upload, real content check, 60-second links), typed database-call layer, plain-English errors (a test checks every database error code has a message).
+- Scripts (written and tested with fakes, **never run against the hosted project**): `scripts/create-first-user.ts`, `scripts/recover-owner.ts`.
+
+### Blocked on you
+| # | Action | Needed for |
+|---|---|---|
+| 1 | Approve applying migrations 11–15 (dry run done) | everything that needs the new functions on the hosted project |
+| 2 | Approve pushing the local commits | CI incl. PostgreSQL 17 job |
+| 3 | Replace the dev Secret Key, then approve the first-Owner run | the real Owner account |
+| 4 | Two mailboxes; allow throw-away test users | RSV-08, RSV-06 (second half), RSV-07 |
 
 ## Milestones
 | # | Milestone | Status | Approved by owner |

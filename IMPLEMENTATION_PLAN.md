@@ -127,3 +127,6 @@ Needs the **budget/provider confirmation (Q11)** and explicit production approva
 | First Owner: full name + real email | ❓ Needed from the owner | Start of M2 |
 | Second Owner: name + real email | ⏸ Pending (not needed to build or test M2) | Recommended before M10 |
 | Q11 hosting budget/providers | ⏸ Deferred | M10 (development on free tiers) |
+
+## M2 progress note (2026-11-11)
+Task list items 1–3, 5 (except real accounts) and 6 are done **locally**: schema (applied), write functions (migrations 11–15, not applied), sign-in/People/My Account screens, first-Owner and recovery scripts (not run), storage code, and a real-PostgreSQL job in CI (not yet run on GitHub). Items still open: apply 11–15 (approval), real-account checks (RSV-06..08, 11), the first Owner (approval), the single M2 completion report. See `M2_STATUS.md`.
