@@ -82,5 +82,8 @@ jobs:
       - run: npm ci
       - name: Show the PostgreSQL version being tested
         run: node scripts/pg-version.mjs
-      - name: All database tests + concurrency tests on real PostgreSQL 17
-        run: npx vitest run tests/db
+      - name: All database tests on real PostgreSQL 17
+        run: npx vitest run tests/db --exclude tests/db/concurrency.pg.test.ts
+      # The simultaneous-request tests open dozens of connections at once: run them alone, not next to other test files.
+      - name: Concurrency tests on real PostgreSQL 17 (many connections at the same moment)
+        run: npx vitest run tests/db/concurrency.pg.test.ts

@@ -52,9 +52,18 @@ function main() {
   const files = readdirSync(DIR)
     .filter((f) => f.endsWith(".sql"))
     .sort();
-  const violations = files.flatMap((f) =>
-    findViolations(f, readFileSync(join(DIR, f), "utf8")),
-  );
+  const violations = files.flatMap((f) => {
+    const content = readFileSync(join(DIR, f), "utf8");
+    const found = findViolations(f, content);
+    // Migrations are plain ASCII: a database created with a non-UTF-8 encoding would refuse other characters.
+    const bad = [...content].filter((c) => c.charCodeAt(0) > 127);
+    if (bad.length) {
+      found.push(
+        `${f}: non-ASCII character(s) ${[...new Set(bad)].join(" ")} (use plain ASCII in migrations)`,
+      );
+    }
+    return found;
+  });
   if (violations.length) {
     console.error(
       "✗ Destructive SQL without '-- DESTRUCTIVE-APPROVED: <reason>':",

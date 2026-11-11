@@ -254,3 +254,6 @@ RPC errors use codes (`STALE_RECORD`, `ID_FIELDS_LOCKED`, `PLAN_TOTAL_MISMATCH`,
 - Server actions use the signed-in user's own client for every database call; the secret key is used only where SECURITY §12.1 lists.
 - With Cache Components enabled, the root layout wraps pages in `<Suspense>`; nothing about who is signed in is cached.
 - Database tests run on two engines: PGlite (fast, default) and a real PostgreSQL (set `STATEADV_PG_URL`; CI uses `postgres:17`). Concurrency tests run only on the real server.
+
+## 13. Configurable master data (2026-11-11)
+C/O categories, C/O names, resorts and stay types are rows in tables, edited through database functions (any active Manager or Owner). No list is an enum or a constant in the code. Bookings keep copies of the names (set by `guard_booking`). The booking forms read the lists with type-to-search (`OptionPicker`, rules in `src/lib/master-data/options.ts`). Settings screens: `/settings`, `/settings/resorts`, `/settings/co`, `/settings/stay-types`. See DATABASE_SCHEMA 5b and MIGRATION_REVIEW 14.

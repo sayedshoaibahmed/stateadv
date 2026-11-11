@@ -18,7 +18,7 @@
     "check": "npm run lint && npm run typecheck && npm run test && npm run check:migrations",
     "test:db": "vitest run tests/db",
     "check:mutations": "node scripts/mutation-check.mjs",
-    "test:pg17": "node scripts/pg-version.mjs && vitest run tests/db"
+    "test:pg17": "node scripts/pg-version.mjs && vitest run tests/db --exclude tests/db/concurrency.pg.test.ts && vitest run tests/db/concurrency.pg.test.ts"
   },
   "dependencies": {
     "@date-fns/tz": "1.5.0",

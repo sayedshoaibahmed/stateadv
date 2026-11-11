@@ -13,8 +13,20 @@ import { dateOffset, setupWorld, uid, type World } from "./fixtures";
 
 const REAL = Boolean(process.env.STATEADV_PG_URL);
 let w: World;
+// Dates are looked up once, up front: preparing requests must not run several queries at once on the shared connection.
+const dayCache = new Map<number, string>();
+async function day(offset: number): Promise<string> {
+  const hit = dayCache.get(offset);
+  if (hit) return hit;
+  const value = await dateOffset(w.db, offset);
+  dayCache.set(offset, value);
+  return value;
+}
 beforeAll(async () => {
-  if (REAL) w = await setupWorld();
+  if (REAL) {
+    w = await setupWorld();
+    for (const n of [0, 1, 2, 3]) await day(n);
+  }
 }, 120_000);
 
 // Test helper: rows and JSON results are inspected loosely on purpose.
@@ -25,6 +37,8 @@ const j = (x: unknown) => JSON.stringify(x);
 /** One independent database connection, logged in as `userId` (like one browser request). */
 async function connect(userId: string) {
   const c = new pg.Client({ connectionString: w.db.url });
+  // a connection that the server closes must never become an uncaught error in the test process
+  c.on("error", () => undefined);
   await c.connect();
   await c.query(
     `select set_config('request.jwt.claim.sub', '${userId}', false); set role authenticated`,
@@ -48,20 +62,21 @@ async function parallel<T>(
       ),
     );
   } finally {
-    await Promise.all(clients.map((c) => c.end()));
+    // close one at a time: closing dozens of sockets in the same instant can crash Node on Windows
+    for (const c of clients) await c.end().catch(() => undefined);
   }
 }
 
 async function bookingPayload(over: Json = {}, resortId = w.resorts.A.id) {
-  const in1 = await dateOffset(w.db, 2);
-  const out1 = await dateOffset(w.db, 3);
+  const in1 = await day(2);
+  const out1 = await day(3);
   return {
     resort_id: resortId,
     guest_id: w.guestId,
     pax: 2,
-    co_category: "direct",
+    co_category_id: w.cat.direct,
     stay_type_id: w.stayTypeId,
-    booking_date: await dateOffset(w.db, 0),
+    booking_date: await day(0),
     check_in_at: `${in1}T14:00:00+05:30`,
     check_out_at: `${out1}T11:00:00+05:30`,
     pricing_method: "per_person_per_stay",
@@ -74,7 +89,7 @@ async function newBooking(final = 500000): Promise<string> {
   const plan = [
     {
       label: "Balance",
-      due_date: await dateOffset(w.db, 2),
+      due_date: await day(2),
       amount_paise: final,
     },
   ];
@@ -86,12 +101,15 @@ async function newBooking(final = 500000): Promise<string> {
   );
   return r[0].r.id as string;
 }
+// as a signed-in Manager (the functions refuse anyone else)
+const mq = <T = Json>(sql: string, p?: unknown[]) =>
+  asManager(() => w.db.q<T>(sql, p));
 const asManager = <T>(fn: () => Promise<T>) =>
   w.db.as({ role: "authenticated", uid: w.manager }, fn);
 /** a booking with `held` paise of approved money, cancelled with a zero charge so everything held is refundable */
 async function heldBooking(held: number): Promise<{ b: string; pay: string }> {
   const b = await newBooking(500000);
-  const d = await dateOffset(w.db, 0);
+  const d = await day(0);
   const pay = await asManager(() =>
     w.db.q<{ r: Json }>(
       `select public.add_payment($1::jsonb, null, $2::uuid) as r`,
@@ -121,7 +139,7 @@ async function heldBooking(held: number): Promise<{ b: string; pay: string }> {
 /** A booking with amount due D=500000 and A=600000 approved. state 'active' keeps it running; 'cancelled' cancels it with charge D. */
 async function overpaidBooking(state: "active" | "cancelled"): Promise<string> {
   const b = await newBooking(500000);
-  const d = await dateOffset(w.db, 0);
+  const d = await day(0);
   const pay = await asManager(() =>
     w.db.q<{ r: Json }>(
       `select public.add_payment($1::jsonb, null, $2::uuid) as r`,
@@ -143,7 +161,7 @@ async function overpaidBooking(state: "active" | "cancelled"): Promise<string> {
     const plan = [
       {
         label: "Cancellation charge",
-        due_date: await dateOffset(w.db, 1),
+        due_date: await day(1),
         amount_paise: 500000,
       },
     ];
@@ -165,7 +183,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
     const plan = [
       {
         label: "Balance",
-        due_date: await dateOffset(w.db, 2),
+        due_date: await day(2),
         amount_paise: 500000,
       },
     ];
@@ -195,7 +213,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
     const plan = [
       {
         label: "Balance",
-        due_date: await dateOffset(w.db, 2),
+        due_date: await day(2),
         amount_paise: 500000,
       },
     ];
@@ -226,7 +244,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
     const plan = [
       {
         label: "Balance",
-        due_date: await dateOffset(w.db, 2),
+        due_date: await day(2),
         amount_paise: 500000,
       },
     ];
@@ -286,7 +304,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
 
   it("CON-05 (REF-04): refunds recorded at the same moment can never exceed the approved money held", async () => {
     const { b } = await heldBooking(100000);
-    const d = await dateOffset(w.db, 0);
+    const d = await day(0);
     const res = await parallel(Array(10).fill(w.manager), (c) =>
       c.query(`select public.add_refund($1::jsonb, null, $2::uuid) as r`, [
         j({
@@ -312,7 +330,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
 
   it("CON-06 (APR-05): 8 people approving the same payment at once: exactly one succeeds, the rest are told it is already decided", async () => {
     const b = await newBooking();
-    const d = await dateOffset(w.db, 0);
+    const d = await day(0);
     const pay = await asManager(() =>
       w.db.q<{ r: Json }>(
         `select public.add_payment($1::jsonb, null, $2::uuid) as r`,
@@ -344,7 +362,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
   it("CON-07 (D5): reversing a payment while a refund is recorded at the same moment never leaves refunds without money", async () => {
     for (let round = 0; round < 6; round++) {
       const { b, pay } = await heldBooking(100000);
-      const d = await dateOffset(w.db, 0);
+      const d = await day(0);
       await parallel([w.owner, w.manager], (c, i) =>
         i === 0
           ? c.query(
@@ -376,7 +394,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
 
   it("CON-08: payment numbers (-P1, -P2 ...) stay unique and gap-free when 10 payments are recorded together", async () => {
     const b = await newBooking();
-    const d = await dateOffset(w.db, 0);
+    const d = await day(0);
     const res = await parallel(Array(10).fill(w.manager), (c) =>
       c.query(`select public.add_payment($1::jsonb, null, $2::uuid) as r`, [
         j({
@@ -416,7 +434,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
     const rows = async (n: number) => [
       {
         label: `Part ${n}`,
-        due_date: await dateOffset(w.db, 3),
+        due_date: await day(3),
         amount_paise: 500000,
       },
     ];
@@ -439,7 +457,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
 
   it("CON-11: the same screenshot file attached twice at once is a warning, never two rows for one stored file", async () => {
     const b = await newBooking();
-    const d = await dateOffset(w.db, 0);
+    const d = await day(0);
     const path = `${b}/${uid()}.png`;
     await w.db.q(
       `insert into storage.objects (bucket_id, name, metadata) values ('payment-proofs', $1, $2::jsonb)`,
@@ -479,7 +497,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
   });
   it("CON-12 (decision 5): on a RUNNING booking 10 simultaneous refunds can never go above A - D - RA - RW", async () => {
     const b = await overpaidBooking("active"); // A=600000, D=500000: room 100000
-    const d = await dateOffset(w.db, 0);
+    const d = await day(0);
     const res = await parallel(Array(10).fill(w.manager), (c) =>
       c.query(`select public.add_refund($1::jsonb, null, $2::uuid) as r`, [
         j({
@@ -503,7 +521,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
   });
 
   it("CON-13 (decision 5): same numbers, different states: simultaneous 70000 refunds → 1 succeeds when running (room 100000), 8 when cancelled (room 600000)", async () => {
-    const d = await dateOffset(w.db, 0);
+    const d = await day(0);
     const run = async (b: string) =>
       parallel(Array(12).fill(w.manager), (c) =>
         c.query(`select public.add_refund($1::jsonb, null, $2::uuid) as r`, [
@@ -529,7 +547,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
     for (const state of ["active", "cancelled"] as const) {
       const b = await overpaidBooking(state);
       const room = state === "active" ? 100000 : 600000;
-      const d = await dateOffset(w.db, 0);
+      const d = await day(0);
       const mk = () =>
         asManager(() =>
           w.db.q<{ r: Json }>(
@@ -564,5 +582,182 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
       );
       expect(sum[0].s).toBeLessThanOrEqual(room);
     }
+  });
+  it("CON-15: the same new C/O category created by 10 people at once exists exactly once", async () => {
+    const res = await parallel(Array(10).fill(w.manager), (c) =>
+      c.query(
+        `select public.upsert_co_category(null, 'Test Race Category') as id`,
+      ),
+    );
+    expect(res.filter((r) => r.ok)).toHaveLength(1);
+    for (const r of res) if (!r.ok) expect(r.error).toContain("DUPLICATE");
+    expect(
+      (
+        await w.db.q(
+          `select 1 from public.co_categories where name = 'Test Race Category'`,
+        )
+      ).length,
+    ).toBe(1);
+  });
+
+  it("CON-16: bookings saved while the category, name, stay type and resort are being renamed always get a consistent copy of the names", async () => {
+    const cat = (
+      await mq<{ id: number }>(
+        `select public.upsert_co_category(null, 'Test Name 0', 'listed') as id`,
+      )
+    )[0].id;
+    const ent = (
+      await mq<{ id: string }>(
+        `select public.upsert_co_entry(null, $1::smallint, 'Test Entry 0') as id`,
+        [cat],
+      )
+    )[0].id;
+    const stayId = (
+      await mq<{ id: number }>(
+        `select public.upsert_stay_type(null, 'Test Stay 0') as id`,
+      )
+    )[0].id;
+    const plan = [
+      {
+        label: "Balance",
+        due_date: await day(2),
+        amount_paise: 500000,
+      },
+    ];
+    const payloads = await Promise.all(
+      Array.from({ length: 8 }, async () =>
+        bookingPayload({
+          co_category_id: cat,
+          co_entry_id: ent,
+          stay_type_id: stayId,
+        }),
+      ),
+    );
+    const res = await parallel(Array(14).fill(w.manager), (c, i) =>
+      i < 8
+        ? c
+            .query(
+              `select public.create_booking($1::jsonb, $2::jsonb, $3::uuid) as r`,
+              [j(payloads[i]), j(plan), uid()],
+            )
+            .then((r) => r.rows[0].r as Json)
+        : i < 10
+          ? c.query(
+              `select public.upsert_co_category($1::smallint, $2, 'listed')`,
+              [cat, `Test Name ${i}`],
+            )
+          : i < 12
+            ? c.query(`select public.upsert_co_entry($1, $2::smallint, $3)`, [
+                ent,
+                cat,
+                `Test Entry ${i}`,
+              ])
+            : c.query(`select public.upsert_stay_type($1::smallint, $2)`, [
+                stayId,
+                `Test Stay ${i}`,
+              ]),
+    );
+    expect(res.filter((r) => !r.ok)).toEqual([]);
+    const rows = await w.db.q<{
+      co_category_name: string;
+      co_name: string;
+      stay_type_name: string;
+    }>(
+      `select co_category_name, co_name, stay_type_name from public.bookings where co_category_id = $1`,
+      [cat],
+    );
+    expect(rows).toHaveLength(8);
+    for (const r of rows) {
+      expect(r.co_category_name).toMatch(/^Test Name \d+$/); // always a real name the category had, never empty or mixed up
+      expect(r.co_name).toMatch(/^Test Entry \d+$/);
+      expect(r.stay_type_name).toMatch(/^Test Stay \d+$/);
+    }
+  });
+
+  it("CON-17: Booking IDs stay unique and gap-free across the four placeholder resorts and a new one at the same moment", async () => {
+    await mq(
+      `select public.upsert_resort(null, 'CON', 'Test Concurrent Resort')`,
+    );
+    const ids = await w.db.q<{ id: string; code: string }>(
+      `select id, code from public.resorts where code in ('SR1','SR2','SR3','SR4','CON') order by code`,
+    );
+    const plan = [
+      {
+        label: "Balance",
+        due_date: await day(2),
+        amount_paise: 500000,
+      },
+    ];
+    const payloads = await Promise.all(
+      Array.from({ length: 30 }, async (_, i) =>
+        bookingPayload({}, ids[i % ids.length].id),
+      ),
+    );
+    const res = await parallel(Array(30).fill(w.manager), (c, i) =>
+      c.query(
+        `select public.create_booking($1::jsonb, $2::jsonb, $3::uuid) as r`,
+        [j(payloads[i]), j(plan), uid()],
+      ),
+    );
+    expect(res.filter((r) => !r.ok)).toEqual([]);
+    for (const r of ids) {
+      const seqs = await w.db.q<{ s: number }>(
+        `select booking_seq s from public.bookings where resort_id = $1 order by 1`,
+        [r.id],
+      );
+      // other tests also booked SR1.. earlier, so check contiguity, not the starting point
+      expect(seqs.map((x) => x.s)).toEqual(
+        Array.from({ length: seqs.length }, (_, i) => i + 1),
+      );
+      expect(seqs.length).toBeGreaterThanOrEqual(6);
+    }
+    const dup = await w.db.q(
+      `select booking_code from public.bookings group by 1 having count(*) > 1`,
+    );
+    expect(dup).toEqual([]);
+  });
+
+  it("CON-18: a resort switched off while bookings are being saved: afterwards nothing new is accepted, nothing saved is lost", async () => {
+    const id = (
+      await mq<{ id: string }>(
+        `select public.upsert_resort(null, 'OFX', 'Test Switch Off Resort') as id`,
+      )
+    )[0].id;
+    const plan = [
+      {
+        label: "Balance",
+        due_date: await day(2),
+        amount_paise: 500000,
+      },
+    ];
+    const payloads = await Promise.all(
+      Array.from({ length: 8 }, async () => bookingPayload({}, id)),
+    );
+    const res = await parallel(Array(9).fill(w.manager), (c, i) =>
+      i < 8
+        ? c.query(
+            `select public.create_booking($1::jsonb, $2::jsonb, $3::uuid) as r`,
+            [j(payloads[i]), j(plan), uid()],
+          )
+        : c.query(`select public.set_resort_active($1, false)`, [id]),
+    );
+    const created = res.slice(0, 8).filter((r) => r.ok).length;
+    for (const r of res.slice(0, 8))
+      if (!r.ok) expect(r.error).toContain("RESORT_INACTIVE");
+    expect(res[8].ok).toBe(true);
+    const seqs = await w.db.q<{ s: number }>(
+      `select booking_seq s from public.bookings where resort_id = $1 order by 1`,
+      [id],
+    );
+    expect(seqs.map((x) => x.s)).toEqual(
+      Array.from({ length: created }, (_, i) => i + 1),
+    ); // no gaps, no loss
+    const late = await parallel([w.manager], (c) =>
+      c.query(
+        `select public.create_booking($1::jsonb, $2::jsonb, $3::uuid) as r`,
+        [j(payloads[0]), j(plan), uid()],
+      ),
+    );
+    expect(late[0].ok).toBe(false);
   });
 });

@@ -37,8 +37,7 @@ Conventions:
 ## 1. Enum types
 ```sql
 create type user_role       as enum ('owner','manager');   -- no operational difference (Q10); used only for Owner-account protection (O1–O3)
-create type co_category     as enum ('agent','partner','own','direct');   -- exactly four
-create type partner_type    as enum ('agent','partner');
+-- (C/O categories are NOT an enum: they are the table co_categories, which Managers configure. See 2.4.)
 create type pricing_method  as enum ('per_person_per_night','per_person_per_stay');  -- Q1
 create type booking_status  as enum ('confirmed','checked_in','checked_out','cancelled','no_show');
 create type payment_method  as enum ('cash','upi','card','cheque','other');
@@ -89,6 +88,8 @@ The first Owner is created by `scripts/create-first-user.ts` (secret key). The s
 | is_active | boolean not null default true | |
 | audit columns | | |
 
+Resorts are **fully configurable** by Managers and Owners (no fixed number): add, rename, change location/contact/logo, switch on/off. Migration 18 seeds **four placeholder resorts** (Sample Resort One to Four, codes SR1–SR4) so the screens can be tried at once; they are not real names. The code is the first part of every Booking ID: it can change until the resort has a booking and is locked after that, and editing a resort never changes an existing Booking ID.
+
 ### 2.3 `guests`
 | Column | Type | Rules |
 |---|---|---|
@@ -103,12 +104,22 @@ The first Owner is created by `scripts/create-first-user.ts` (secret key). The s
 
 Mobile is not unique; the UI suggests matches.
 
-### 2.4 `agents_partners`
-`id uuid PK, type partner_type not null, name text not null, mobile text, notes text, is_active bool default true, audit columns, UNIQUE (type, lower(name))`.
+### 2.4 `co_categories` (configurable, owner requirement 2026-11-11)
+The C/O ("who brought the booking") categories. **Managers and Owners add, rename, extend and switch them off themselves; nothing is a fixed list.**
+`id smallint identity PK, name text not null, name_mode text not null default 'listed', is_active bool default true, sort_order int default 100, audit columns`.
+- `name`: 1–60 characters, unique ignoring capitals and spaces at the ends.
+- `name_mode` (`CHECK in ('listed','typed','none')`) says how a booking uses the category: **listed** = a name chosen from the category's list in `co_entries` (like Agent, Partner); **typed** = a name typed on the booking (like Own); **none** = no name (like Direct).
+- Seed (migration 17), **starting examples only**: Agent (listed), Partner (listed), Own (typed), Direct (none).
+- A category is never deleted; switching it off only stops NEW bookings from choosing it.
+
+### 2.4a `co_entries` (was `agents_partners`)
+The names inside a `listed` category. `id uuid PK, category_id smallint not null FK → co_categories, name text not null, mobile text, notes text, is_active bool default true, audit columns`.
+- `UNIQUE (category_id, lower(btrim(name)))`; `UNIQUE (id, category_id)` (target of the booking's composite key); a trigram index on the name for type-to-search.
+- A name cannot be moved to another category.
 
 ### 2.5 `stay_types` (lookup, Q2)
 `id smallint identity PK, name text unique not null, is_active bool default true, sort_order int`.
-Seed: **Resort Stay (1), Day Outing (2), Package (3)**. Editable in Settings.
+Seed: **Resort Stay (1), Day Outing (2), Package (3)** — starting examples only. Managers and Owners add as many stay types as they need, rename them and switch them off in Settings; bookings keep a copy of the name (`bookings.stay_type_name`).
 
 ### 2.6 `payment_providers` (lookup)
 `id smallint identity PK, method payment_method not null, name text not null, is_active bool, sort_order int, UNIQUE (method, name)`.
@@ -135,10 +146,13 @@ Used only by internal `next_booking_code(resort_id, booking_date)`. No grants to
 | guest_id | uuid not null FK → guests | |
 | guest_name / guest_mobile | text not null | snapshot |
 | pax | int not null | `CHECK (pax between 1 and 1000)` |
-| co_category | co_category not null | |
-| agent_partner_id | uuid FK → agents_partners | |
-| co_name | text | snapshot of the agent/partner name, or the Own source name |
+| co_category_id | smallint not null FK → co_categories | the category chosen (configurable) |
+| co_category_name | text not null | **copy** of the category name when chosen; set by the guard, never moves |
+| co_mode | text not null | **copy** of the category's name_mode when chosen (`listed`/`typed`/`none`) |
+| co_entry_id | uuid FK → co_entries | the chosen name when the mode is `listed`; with co_category_id a composite FK `(co_entry_id, co_category_id) → co_entries (id, category_id)`, so a name can only be used with its own category |
+| co_name | text | **copy** of the name when chosen: the list name, or the typed name |
 | stay_type_id | smallint not null FK → stay_types | |
+| stay_type_name | text not null | **copy** of the stay type name when chosen; set by the guard, never moves |
 | booking_date | date not null | `CHECK (extract(year from booking_date) = booking_year)` (Q16) |
 | check_in_at / check_out_at | timestamptz not null | `CHECK (check_out_at > check_in_at)` |
 | nights | int not null | = IST date(check_out) − IST date(check_in), computed by the RPC (D4). `CHECK (nights >= 0)` |
@@ -170,15 +184,15 @@ CHECK (base_amount_paise = pax * tariff_per_person_paise *
        case when pricing_method = 'per_person_per_night' then nights else 1 end)
 CHECK (pricing_method <> 'per_person_per_night' OR nights >= 1)
 ```
-C/O check (Q3):
+C/O check (Q3, now driven by the mode the category had when the booking was made):
 ```sql
 CHECK (
-  (co_category in ('agent','partner') and agent_partner_id is not null and co_name is not null)
-  or (co_category = 'own'    and agent_partner_id is null and co_name is not null)
-  or (co_category = 'direct' and agent_partner_id is null and co_name is null)
+  (co_mode = 'listed' and co_entry_id is not null and co_name is not null)
+  or (co_mode = 'typed' and co_entry_id is null and co_name is not null)
+  or (co_mode = 'none'  and co_entry_id is null and co_name is null)
 )
 ```
-Plus a trigger: `agents_partners.type` must match `co_category`.
+**History is protected.** The guard (`guard_booking`) sets `co_category_name`, `co_mode`, `co_name` and `stay_type_name` from the master data at the moment a choice is made and keeps them unchanged afterwards. Renaming or switching off a category, a name or a stay type therefore never rewrites or hides an old booking; a NEW or CHANGED choice must be switched on (`CO_INACTIVE`, `STAY_TYPE_INACTIVE`). An old booking that uses a switched-off choice stays readable and editable.
 
 Cancellation check (Q7):
 ```sql
@@ -544,7 +558,7 @@ Every function first checks `is_active_user()`, validates input, locks the rows 
 - `approve/reject/reverse_payment` and `…_refund` share `decide_payment` / `decide_refund`. They lock the **booking row first**, then the payment/refund row (one fixed order, so two people never deadlock).
 - `register_pdf_version`, `claim_pdf_jobs` and the report functions belong to M6 and M8. Every write function already queues a `pdf_jobs` row.
 
-**Callable by signed-in users (37 of the 83 functions in `public`; everything else is internal)**: `active_owner_count, booking_overdue, cancel_booking, change_cancellation_charge, complete_password_change, create_booking, is_active_user, normalize_mobile, plan_preview, profile_change_email, profile_create, profile_reset_password, profile_set_active, profile_update, set_booking_status, set_payment_schedule, set_resort_active, today_ist, update_booking, upsert_agent_partner, upsert_guest, upsert_provider, upsert_resort, upsert_stay_type` plus the thirteen payment/refund/proof functions. Test SEC-04 lists them **exactly**: adding a function means adding it to that list in the same change. `recover_owner_account` is for the service role only. The service role also keeps Supabase's default rights on the internal helpers (it bypasses the rules anyway; it has the same power as the secret key, which is why that key must stay private).
+**Callable by signed-in users (38 of the 85 functions in `public`; everything else is internal)**: `active_owner_count, booking_overdue, cancel_booking, change_cancellation_charge, complete_password_change, create_booking, is_active_user, normalize_mobile, plan_preview, profile_change_email, profile_create, profile_reset_password, profile_set_active, profile_update, set_booking_status, set_payment_schedule, set_resort_active, today_ist, update_booking, upsert_co_category, upsert_co_entry, upsert_guest, upsert_provider, upsert_resort, upsert_stay_type` plus the thirteen payment/refund/proof functions. Test SEC-04 lists them **exactly**: adding a function means adding it to that list in the same change. `recover_owner_account` is for the service role only. The service role also keeps Supabase's default rights on the internal helpers (it bypasses the rules anyway; it has the same power as the secret key, which is why that key must stay private).
 
 **Owner decisions on the points the documents left open (approved 2026-11-11) and where each is built**
 
@@ -560,3 +574,16 @@ Notes on decision 5:
 - The limit is enforced in the database guard (cannot be skipped by any caller) under the booking-row lock that `add_refund` and the guard both take, so simultaneous requests take turns. It also applies when the amount of a waiting refund is raised (its own old amount is freed first).
 - "Refund due" in the views (`refund_due_paise`, `refund_still_to_record_paise`) and the warning `ABOVE_REFUND_DUE` are unchanged. For a running booking the hard limit is the same as the old "refund still to record" figure, so that column is the right one for the screen. `refundable_limit_paise` (= A − RA − RW) is the **cancelled** booking limit; screens must not use it for running bookings.
 - Unchanged and worth knowing: reversing a payment (D5) still protects refunds against the money **held** (`A − RA − RW ≥ 0`), as approved, not against `A − D`.
+
+## 5b. Configurable master data (owner requirement 2026-11-11; migrations 13, 14, 17, 18)
+
+| Area | Functions (any signed-in, active Manager or Owner) | Notes |
+|---|---|---|
+| C/O categories | `upsert_co_category(id, name, name_mode, is_active, sort_order)` | add / rename / change kind / switch on or off. `name_mode`: `listed`, `typed`, `none`. Unique name ignoring capitals. Never deleted. |
+| C/O names | `upsert_co_entry(id, category_id, name, mobile, notes, is_active)` | only in a `listed` category; unique per category; cannot move to another category; never deleted |
+| Resorts | `upsert_resort`, `set_resort_active` (existing) | no fixed number; code locked after the first booking; four placeholder resorts seeded by migration 18 |
+| Stay types | `upsert_stay_type` (existing) | no fixed number; unique name ignoring capitals; bookings keep a copy of the name |
+
+**How history is protected.** A booking stores `co_category_id`, `co_entry_id` and the **copies** `co_category_name`, `co_mode`, `co_name`, `stay_type_name`. The copies are written by `guard_booking` from the master data at the moment a choice is made (never by the caller) and are restored on every later update, so a rename, a change of kind or a switch-off can never rewrite or hide an old booking. A NEW or CHANGED choice must be switched on (`CO_INACTIVE`, `STAY_TYPE_INACTIVE`, `RESORT_INACTIVE`); an unchanged old choice may stay switched off. A composite foreign key `(co_entry_id, co_category_id) → co_entries (id, category_id)` makes it impossible to combine a name with another category's booking.
+
+**Migration order (all new; 01–10 are the applied ones):** 11 account self-service · 12 account management · 13 master data functions (incl. the C/O functions) · 14 booking functions · 15 payment/refund functions · 16 refund limits · **17 configurable C/O (converts `agents_partners` → `co_entries`, `bookings.co_category` → `co_category_id` + copies, adds `stay_type_name`, drops the two old enum types)** · **18 four placeholder resorts**. Functions in 13 and 14 name the tables and columns of 17; PostgreSQL looks names up when a function runs, so the order is safe, and the whole sequence is applied from scratch in every test run.

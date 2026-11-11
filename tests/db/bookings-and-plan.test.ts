@@ -101,9 +101,9 @@ describe("amounts (AMT-*, Q1, Q14)", () => {
       txOwner(() =>
         q(
           `insert into public.bookings (booking_code, resort_id, booking_year, booking_seq, guest_id, guest_name, guest_mobile, pax,
-             co_category, stay_type_id, booking_date, check_in_at, check_out_at, nights, pricing_method,
+             co_category_id, stay_type_id, booking_date, check_in_at, check_out_at, nights, pricing_method,
              tariff_per_person_paise, base_amount_paise, idempotency_key)
-           values ('AAA-2026-009999', $1, 2026, 9999, $2, 'T', '9876543210', 2, 'direct', $3, '2026-05-05',
+           values ('AAA-2026-009999', $1, 2026, 9999, $2, 'T', '9876543210', 2, (select id from public.co_categories where name = 'Direct'), $3, '2026-05-05',
                    '2026-05-06 14:00+05:30', '2026-05-07 11:00+05:30', 1, 'per_person_per_stay', 250000, 400000, $4)`,
           [w.resorts.A.id, w.guestId, w.stayTypeId, uid()],
         ),
@@ -120,9 +120,9 @@ describe("amounts (AMT-*, Q1, Q14)", () => {
         try {
           await q(
             `insert into public.bookings (booking_code, resort_id, booking_year, booking_seq, guest_id, guest_name, guest_mobile, pax,
-               co_category, stay_type_id, booking_date, check_in_at, check_out_at, nights, pricing_method,
+               co_category_id, stay_type_id, booking_date, check_in_at, check_out_at, nights, pricing_method,
                tariff_per_person_paise, base_amount_paise, idempotency_key)
-             values ('AAA-2026-009998', $1, 2026, 9998, $2, 'T', '9876543210', 1, 'direct', $3, '2026-05-05',
+             values ('AAA-2026-009998', $1, 2026, 9998, $2, 'T', '9876543210', 1, (select id from public.co_categories where name = 'Direct'), $3, '2026-05-05',
                      $4::timestamptz, $5::timestamptz, $6, 'per_person_per_stay', 100, 100, $7)`,
             [w.resorts.A.id, w.guestId, w.stayTypeId, inT, outT, nights, uid()],
           );
@@ -221,9 +221,9 @@ describe("Booking ID and frozen fields (BID-*, Q4, Q16)", () => {
       txOwner(() =>
         q(
           `insert into public.bookings (booking_code, resort_id, booking_year, booking_seq, guest_id, guest_name, guest_mobile, pax,
-             co_category, stay_type_id, booking_date, check_in_at, check_out_at, nights, pricing_method,
+             co_category_id, stay_type_id, booking_date, check_in_at, check_out_at, nights, pricing_method,
              tariff_per_person_paise, base_amount_paise, idempotency_key)
-           values ($1, $2, $3, $4, $5, 'T', '9876543210', 1, 'direct', $6, public.today_ist(),
+           values ($1, $2, $3, $4, $5, 'T', '9876543210', 1, (select id from public.co_categories where name = 'Direct'), $6, public.today_ist(),
                    now(), now() + interval '1 day', 1, 'per_person_per_stay', 100, 100, $7)`,
           [
             `BBB-${year}-${String(seq).padStart(6, "0")}`,
@@ -245,9 +245,9 @@ describe("Booking ID and frozen fields (BID-*, Q4, Q16)", () => {
       txOwner(() =>
         q(
           `insert into public.bookings (booking_code, resort_id, booking_year, booking_seq, guest_id, guest_name, guest_mobile, pax,
-             co_category, stay_type_id, booking_date, check_in_at, check_out_at, nights, pricing_method,
+             co_category_id, stay_type_id, booking_date, check_in_at, check_out_at, nights, pricing_method,
              tariff_per_person_paise, base_amount_paise, idempotency_key)
-           values ('AAA-2025-000001', $1, 2026, 1, $2, 'T', '9876543210', 1, 'direct', $3, '2026-03-03',
+           values ('AAA-2025-000001', $1, 2026, 1, $2, 'T', '9876543210', 1, (select id from public.co_categories where name = 'Direct'), $3, '2026-03-03',
                    '2026-03-04 10:00+05:30', '2026-03-05 10:00+05:30', 1, 'per_person_per_stay', 100, 100, $4)`,
           [w.resorts.A.id, w.guestId, w.stayTypeId, uid()],
         ),
@@ -363,9 +363,9 @@ describe("Booking ID and frozen fields (BID-*, Q4, Q16)", () => {
       txOwner(() =>
         q(
           `insert into public.bookings (booking_code, resort_id, booking_year, booking_seq, guest_id, guest_name, guest_mobile, pax,
-             co_category, stay_type_id, booking_date, check_in_at, check_out_at, nights, pricing_method,
+             co_category_id, stay_type_id, booking_date, check_in_at, check_out_at, nights, pricing_method,
              tariff_per_person_paise, base_amount_paise, idempotency_key)
-           values ($1, $2, 2026, $3, $4, 'T', '9876543210', 1, 'direct', $5, '2026-06-06',
+           values ($1, $2, 2026, $3, $4, 'T', '9876543210', 1, (select id from public.co_categories where name = 'Direct'), $5, '2026-06-06',
                    '2026-06-07 10:00+05:30', '2026-06-08 10:00+05:30', 1, 'per_person_per_stay', 0, 0, $6)`,
           [
             `BBB-2026-${String(seq).padStart(6, "0")}`,

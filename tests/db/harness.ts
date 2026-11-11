@@ -72,6 +72,8 @@ export interface TestDb {
   pg: unknown;
   /** Only for the real-PostgreSQL backend: URL of this test's scratch database (for extra connections). */
   url?: string;
+  /** Only when created with `upTo`: applies the migration files that were held back (in order). */
+  applyRest?: () => Promise<void>;
   /** Run SQL, return rows. Runs as the CURRENT session (see `as`). */
   q<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
   exec(sql: string): Promise<void>;
@@ -101,20 +103,28 @@ export function listMigrationFiles(): string[] {
     .sort();
 }
 
-export async function createDb(): Promise<TestDb> {
+/**
+ * `upTo`: stop after this migration file (for example "20261111000016_refund_limits.sql"), so a test can put
+ * data into the OLD structure and then apply the remaining migrations with `db.applyRest()`.
+ */
+export async function createDb(opts: { upTo?: string } = {}): Promise<TestDb> {
+  const all = listMigrationFiles();
+  const first = opts.upTo ? all.filter((f) => f <= opts.upTo!) : all;
+  const rest = opts.upTo ? all.filter((f) => f > opts.upTo!) : [];
   if (process.env.STATEADV_PG_URL) {
     // Real PostgreSQL (CI service container or a throw-away local server) instead of PGlite.
     const { createPgDb } = await import("./pg-backend");
     return createPgDb(
       SUPABASE_STANDIN,
       MIGRATIONS_DIR,
-      listMigrationFiles(),
+      first,
       applySession as never,
+      rest,
     );
   }
   const pg = new PGlite({ extensions: { pg_trgm } });
   await pg.exec(SUPABASE_STANDIN);
-  for (const file of listMigrationFiles()) {
+  for (const file of first) {
     const sql = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
     try {
       await pg.exec(sql);
@@ -125,6 +135,15 @@ export async function createDb(): Promise<TestDb> {
 
   const db: TestDb = {
     pg,
+    async applyRest() {
+      for (const file of rest) {
+        try {
+          await pg.exec(readFileSync(join(MIGRATIONS_DIR, file), "utf8"));
+        } catch (e) {
+          throw new Error(`Migration ${file} failed: ${(e as Error).message}`);
+        }
+      }
+    },
     async q(sql, params) {
       const r = await pg.query(sql, params as unknown[]);
       return r.rows as never;

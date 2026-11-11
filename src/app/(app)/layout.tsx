@@ -26,6 +26,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             People
           </Link>
           <Link
+            href="/settings"
+            className="text-sm underline-offset-4 hover:underline"
+          >
+            Settings
+          </Link>
+          <Link
             href="/account"
             className="text-sm underline-offset-4 hover:underline"
           >

@@ -244,39 +244,42 @@ describe("guests, agents and partners", () => {
     ).toBe("Test Guest Two Edited");
   });
 
-  it("MDF-07: agents and partners: duplicates by type+name are refused; the type cannot change", async () => {
+  it("MDF-07: C/O names: duplicates inside one category are refused, the same name may exist in another category, a name cannot move", async () => {
     const [{ id }] = await call<{ id: string }>(
       w.manager,
-      `select public.upsert_agent_partner(null, 'agent', 'Test Agent Two') as id`,
+      `select public.upsert_co_entry(null, $1::smallint, 'Test Agent Two') as id`,
+      [w.cat.agent],
     );
     await expectDbError(
       call(
         w.manager,
-        `select public.upsert_agent_partner(null, 'agent', 'test agent two')`,
+        `select public.upsert_co_entry(null, $1::smallint, 'test agent two')`,
+        [w.cat.agent],
       ),
       "DUPLICATE",
     );
     await call(
       w.manager,
-      `select public.upsert_agent_partner(null, 'partner', 'Test Agent Two')`,
-    ); // same name, other type: fine
+      `select public.upsert_co_entry(null, $1::smallint, 'Test Agent Two')`,
+      [w.cat.partner],
+    ); // same name, other category: fine
     await expectDbError(
       call(
         w.manager,
-        `select public.upsert_agent_partner($1, 'partner', 'Test Agent Two')`,
-        [id],
+        `select public.upsert_co_entry($1, $2::smallint, 'Test Agent Two')`,
+        [id, w.cat.partner],
       ),
       "INVALID_INPUT",
     );
     await call(
       w.manager,
-      `select public.upsert_agent_partner($1, 'agent', 'Test Agent Two', '99999', null, false)`,
-      [id],
+      `select public.upsert_co_entry($1, $2::smallint, 'Test Agent Two', '99999', null, false)`,
+      [id, w.cat.agent],
     );
     expect(
       (
         await q<{ is_active: boolean }>(
-          `select is_active from public.agents_partners where id = $1`,
+          `select is_active from public.co_entries where id = $1`,
           [id],
         )
       )[0].is_active,
@@ -363,7 +366,8 @@ describe("authorisation for all master data functions", () => {
       `select public.upsert_resort(null, 'ZZZ', 'Test Zed')`,
       `select public.set_resort_active('${w.resorts.A.id}', false)`,
       `select public.upsert_guest(null, 'Test', '9876500009')`,
-      `select public.upsert_agent_partner(null, 'agent', 'Test Z')`,
+      `select public.upsert_co_category(null, 'Test Z')`,
+      `select public.upsert_co_entry(null, ${w.cat.agent}::smallint, 'Test Z')`,
       `select public.upsert_stay_type(null, 'Test Z')`,
       `select public.upsert_provider(null, 'upi', 'Test Z')`,
     ];

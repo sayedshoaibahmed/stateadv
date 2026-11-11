@@ -16,6 +16,9 @@ export interface World {
   resorts: { A: { id: string; code: string }; B: { id: string; code: string } };
   guestId: string;
   stayTypeId: number;
+  /** ids of the four STARTING categories seeded by migration 17 */
+  cat: { agent: number; partner: number; own: number; direct: number };
+  /** a name in the Agent list and one in the Partner list */
   agentId: string;
   partnerId: string;
   seq: Map<string, number>;
@@ -59,6 +62,16 @@ export async function setupWorld(): Promise<World> {
   const guestId = uid();
   const agentId = uid();
   const partnerId = uid();
+  const catRows = await db.q<{ id: number; name: string }>(
+    `select id, name from public.co_categories`,
+  );
+  const catId = (n: string) => catRows.find((c) => c.name === n)!.id;
+  const cat = {
+    agent: catId("Agent"),
+    partner: catId("Partner"),
+    own: catId("Own"),
+    direct: catId("Direct"),
+  };
   await db.as({ role: "postgres", uid: owner }, async () => {
     await db.q(
       `insert into public.resorts (id, code, name) values ($1, 'AAA', 'Test Resort Alpha'), ($2, 'BBB', 'Test Resort Beta')`,
@@ -69,8 +82,8 @@ export async function setupWorld(): Promise<World> {
       [guestId],
     );
     await db.q(
-      `insert into public.agents_partners (id, type, name) values ($1, 'agent', 'Test Agent'), ($2, 'partner', 'Test Partner')`,
-      [agentId, partnerId],
+      `insert into public.co_entries (id, category_id, name) values ($1, $3, 'Test Agent'), ($2, $4, 'Test Partner')`,
+      [agentId, partnerId, cat.agent, cat.partner],
     );
   });
   const [{ id: stayTypeId }] = await db.q<{ id: number }>(
@@ -85,6 +98,7 @@ export async function setupWorld(): Promise<World> {
     resorts,
     guestId,
     stayTypeId,
+    cat,
     agentId,
     partnerId,
     seq: new Map(),
@@ -184,11 +198,11 @@ export async function createBooking(
     await db.q(
       `insert into public.bookings
          (id, booking_code, resort_id, booking_year, booking_seq, guest_id, guest_name, guest_mobile, pax,
-          co_category, agent_partner_id, co_name, stay_type_id, booking_date, check_in_at, check_out_at, nights,
+          co_category_id, co_entry_id, co_name, stay_type_id, booking_date, check_in_at, check_out_at, nights,
           pricing_method, tariff_per_person_paise, base_amount_paise, extra_charges_paise, discount_paise,
           manual_adjustment_paise, manual_adjustment_reason, idempotency_key)
        values ($1,$2,$3,$4,$5,$6,'Test Guest','9876543210',$7,
-               $8::public.co_category,$9,$10,$11,$12::date,
+               $8,$9,$10,$11,$12::date,
                ($13::text || ' 14:00:00+05:30')::timestamptz,
                ($14::text || case when $15::int = 0 then ' 18:00:00+05:30' else ' 11:00:00+05:30' end)::timestamptz,
                $15, $16::public.pricing_method,$17,$18,$19,$20,$21,$22,$23)`,
@@ -200,7 +214,7 @@ export async function createBooking(
         seq,
         w.guestId,
         pax,
-        co.category,
+        w.cat[co.category],
         co.partnerId ?? null,
         co.name ?? null,
         w.stayTypeId,

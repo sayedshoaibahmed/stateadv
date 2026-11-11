@@ -3,31 +3,34 @@
 Last updated: 2026-11-11
 
 ## Current status (updated 2026-11-11)
-**M2 – Database and Authentication is ONE milestone, in progress, NOT complete.** Full audit: `M2_STATUS.md` (52 in-scope requirements: 3 fully complete, 46 built and tested locally awaiting hosted verification, 3 not done).
+**M2 – Database and Authentication is ONE milestone, in progress, NOT complete.** Full audit: `M2_STATUS.md`.
 
-### What exists, and where it has been verified
+### Where each thing has been verified
 | Level | State |
 |---|---|
-| **Hosted dev project** (PostgreSQL 17.11) | Migrations **01–10 applied** and verified read-only. Migrations **11–16 are NOT applied** (dry run on 2026-11-11 lists exactly those six). No Owner account. Signup disabled. |
-| **GitHub** | `origin/main` is at `92ecd3d`. **Nothing newer has been pushed.** The new PostgreSQL 17 CI job has therefore never run on GitHub. |
-| **Local, real PostgreSQL 17.11** (throw-away server) | All database tests + 14 concurrency tests pass (334). The concurrency tests fail when the locks are removed (checked). |
-| **Local, PGlite** | 463 tests pass (14 concurrency tests are skipped there: they need real connections). Mutation check: 42 of 42 weakened versions caught. |
-| Lint, types, format, production build, browser-bundle scan, migration check | pass |
-| `npm audit --omit=dev` | 0 findings. Dev-only: 3 advisories inside the `shadcn` command-line tool (not shipped; the suggested fix is a breaking major version). |
+| **Hosted dev project** (PostgreSQL 17.11) | Migrations **01–10 applied** and verified read-only. Migrations **11–18 are NOT applied** (dry run lists exactly those eight). No Owner account. Signup disabled. Tables that migration 17 changes are **empty** on hosted (0 bookings, 0 C/O names). |
+| **GitHub** | `origin/main` is at `92ecd3d`. **Nothing newer has been pushed**, so the PostgreSQL 17 CI job has never run on GitHub. |
+| **Local, real PostgreSQL 17.11** (throw-away server) | **368** tests pass (database, data-conversion and 18 simultaneous-request tests). |
+| **Local, PGlite** | **503** tests pass (18 concurrency tests skipped there). Mutation check: **53 of 53** weakened versions caught. |
+| Lint, types, format, production build, bundle scan, migration check (now also ASCII-only) | pass |
+| `npm audit --omit=dev` | 0 findings (3 dev-only advisories in the `shadcn` command-line tool, not shipped) |
 
-### Built in M2 so far (all local)
-- Sign in/out, forgot password (Owner accounts only), reset link, forced password change, My Account (own password, own email by the verified process), People pages (add, edit, role, switch on/off, reset password, change email), history, Owner notices on the home page.
-- Migrations 11–16 add 58 functions (83 in schema `public` in total; 37 are callable by signed-in users, the rest are internal helpers or table guards): accounts, master data, bookings, plan, payments, refunds, approvals, proof files, correction files. All writes go through them; app users still have no direct table write.
-- Storage code (server-chosen names, signed upload, real content check, 60-second links), typed database-call layer, plain-English errors (a test checks every database error code has a message).
-- Scripts (written and tested with fakes, **never run against the hosted project**): `scripts/create-first-user.ts`, `scripts/recover-owner.ts`.
+**Known issue (open):** on this Windows machine the many-connection test file sometimes loses its Node worker process (about 1 run in 10; no failing assertion ever; see MIGRATION_REVIEW 14.6).
+
+### Done in this stage (owner requirement 2026-11-11: configurable master data)
+- **C/O categories and names**, **resorts** and **stay types** are configured by Managers and Owners themselves: any number, any name, rename, switch on/off, type-to-search. Four **placeholder resorts** start the system. Bookings keep their own copy of the names, so renaming or switching off never rewrites history; old bookings with switched-off choices stay readable and editable; new choices must be switched on.
+- Schema: migration **17** (new `co_categories`; `agents_partners` → `co_entries`; booking copies of names; composite key; guard replaced; two old enum types removed) and **18** (placeholder resorts); functions in 13 and 14 changed. **Data-preserving conversion proven** on a database that holds bookings, payments and plans.
+- Screens: Settings → Resorts, C/O, Stay Types, and the shared type-to-search picker. Not yet exercised in a browser against a real project; the booking forms that use the picker are M4.
+- Four defects found and fixed along the way (MIGRATION_REVIEW 14.4), including one that the empty hosted database would never have shown.
+- The five approved decisions (commit `5cd0c99`) are intact and still tested.
 
 ### Blocked on you
 | # | Action | Needed for |
 |---|---|---|
-| 1 | Approve applying migrations 11–16 (dry run done) | everything that needs the new functions on the hosted project |
+| 1 | Approve applying migrations 11–18 (dry run done; migration 17 has DROP COLUMN/TYPE, see MIGRATION_REVIEW 14.2) | everything on the hosted project |
 | 2 | Approve pushing the local commits | CI incl. PostgreSQL 17 job |
 | 3 | Replace the dev Secret Key, then approve the first-Owner run | the real Owner account |
-| 4 | Two mailboxes; allow throw-away test users | RSV-08, RSV-06 (second half), RSV-07 |
+| 4 | Two mailboxes; allow throw-away test users | RSV-06 (second half), 07, 08 |
 
 ## Milestones
 | # | Milestone | Status | Approved by owner |

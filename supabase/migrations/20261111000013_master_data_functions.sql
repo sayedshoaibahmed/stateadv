@@ -164,11 +164,67 @@ revoke all on function public.upsert_guest(uuid, text, text, text, text, text) f
 grant execute on function public.upsert_guest(uuid, text, text, text, text, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- upsert_agent_partner (type cannot be changed after it is created: bookings may refer to it)
+-- C/O categories and their names (owner requirement 2026-11-11: fully configurable by Managers and Owners).
+-- The tables are created in migration 17; PostgreSQL looks the table names up when a function RUNS, so this
+-- file can come first (the whole sequence is applied from scratch in the tests).
+--
+-- upsert_co_category: p_id NULL = add. name_mode says how a booking uses the category:
+--   'listed' a name chosen from the category's list   'typed' a typed name   'none' no name
+-- Renaming or switching off a category never changes an existing booking: bookings keep a copy of the names.
 -- ---------------------------------------------------------------------------
-create function public.upsert_agent_partner(
+create function public.upsert_co_category(
+  p_id smallint,
+  p_name text,
+  p_name_mode text default 'listed',
+  p_is_active boolean default true,
+  p_sort_order int default 100
+)
+returns smallint
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_name text := btrim(coalesce(p_name, ''));
+  v_mode text := coalesce(p_name_mode, 'listed');
+  v_id   smallint;
+begin
+  perform public.require_active_user();
+  if length(v_name) not between 1 and 60 then
+    raise exception 'INVALID_INPUT' using detail = 'Please enter the name of the category (up to 60 letters).';
+  end if;
+  if v_mode not in ('listed', 'typed', 'none') then
+    raise exception 'INVALID_INPUT' using detail = 'Please choose how bookings use this category.';
+  end if;
+  begin
+    if p_id is null then
+      insert into public.co_categories (name, name_mode, is_active, sort_order)
+      values (v_name, v_mode, coalesce(p_is_active, true), coalesce(p_sort_order, 100))
+      returning id into v_id;
+    else
+      update public.co_categories
+         set name = v_name, name_mode = v_mode, is_active = coalesce(p_is_active, is_active),
+             sort_order = coalesce(p_sort_order, sort_order)
+       where id = p_id returning id into v_id;
+      if v_id is null then
+        raise exception 'NOT_FOUND' using detail = 'Category not found.';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'DUPLICATE' using detail = 'A category with this name already exists.';
+  end;
+  return v_id;
+end
+$$;
+revoke all on function public.upsert_co_category(smallint, text, text, boolean, int) from public, anon, authenticated;
+grant execute on function public.upsert_co_category(smallint, text, text, boolean, int) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- upsert_co_entry: a name in a 'listed' category (an agent, a partner, a company ...). p_id NULL = add.
+-- The category of an existing name cannot be changed (bookings refer to the pair).
+-- ---------------------------------------------------------------------------
+create function public.upsert_co_entry(
   p_id uuid,
-  p_type public.partner_type,
+  p_category_id smallint,
   p_name text,
   p_mobile text default null,
   p_notes text default null,
@@ -181,35 +237,43 @@ as $$
 declare
   v_id   uuid := coalesce(p_id, gen_random_uuid());
   v_name text := btrim(coalesce(p_name, ''));
+  v_mode text;
 begin
   perform public.require_active_user();
-  if p_type is null or length(v_name) not between 1 and 120 then
-    raise exception 'INVALID_INPUT' using detail = 'Please choose Agent or Partner and enter the name.';
+  if p_category_id is null or length(v_name) not between 1 and 120 then
+    raise exception 'INVALID_INPUT' using detail = 'Please choose the category and enter the name.';
+  end if;
+  select c.name_mode into v_mode from public.co_categories c where c.id = p_category_id;
+  if v_mode is null then
+    raise exception 'NOT_FOUND' using detail = 'Category not found.';
+  end if;
+  if v_mode <> 'listed' then
+    raise exception 'INVALID_INPUT' using detail = 'This category does not use a list of names.';
   end if;
   begin
     if p_id is null then
-      insert into public.agents_partners (id, type, name, mobile, notes, is_active)
-      values (v_id, p_type, v_name, public.clean_text(p_mobile), public.clean_text(p_notes), coalesce(p_is_active, true));
+      insert into public.co_entries (id, category_id, name, mobile, notes, is_active)
+      values (v_id, p_category_id, v_name, public.clean_text(p_mobile), public.clean_text(p_notes), coalesce(p_is_active, true));
     else
-      if exists (select 1 from public.agents_partners a where a.id = p_id and a.type <> p_type) then
-        raise exception 'INVALID_INPUT' using detail = 'An Agent cannot be changed into a Partner, or the other way round.';
+      if exists (select 1 from public.co_entries e where e.id = p_id and e.category_id <> p_category_id) then
+        raise exception 'INVALID_INPUT' using detail = 'A name cannot be moved to another category.';
       end if;
-      update public.agents_partners
+      update public.co_entries
          set name = v_name, mobile = public.clean_text(p_mobile), notes = public.clean_text(p_notes),
              is_active = coalesce(p_is_active, is_active)
        where id = p_id;
       if not found then
-        raise exception 'NOT_FOUND' using detail = 'Agent or partner not found.';
+        raise exception 'NOT_FOUND' using detail = 'Name not found.';
       end if;
     end if;
   exception when unique_violation then
-    raise exception 'DUPLICATE' using detail = 'This name already exists.';
+    raise exception 'DUPLICATE' using detail = 'This name already exists in the category.';
   end;
   return v_id;
 end
 $$;
-revoke all on function public.upsert_agent_partner(uuid, public.partner_type, text, text, text, boolean) from public, anon, authenticated;
-grant execute on function public.upsert_agent_partner(uuid, public.partner_type, text, text, text, boolean) to authenticated;
+revoke all on function public.upsert_co_entry(uuid, smallint, text, text, text, boolean) from public, anon, authenticated;
+grant execute on function public.upsert_co_entry(uuid, smallint, text, text, text, boolean) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- upsert_stay_type

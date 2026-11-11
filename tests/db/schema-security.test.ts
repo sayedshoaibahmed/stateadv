@@ -37,15 +37,14 @@ describe("migrations", () => {
     expect(n).toBe(9);
   });
 
-  it("a fresh database has no users, resorts, bookings or money records", async () => {
+  it("a fresh database has no users, guests, bookings or money records, and only the starting master data", async () => {
     const { db } = await import("./harness").then(async (h) => ({
       db: await h.createDb(),
     }));
     for (const t of [
       "user_profiles",
-      "resorts",
       "guests",
-      "agents_partners",
+      "co_entries",
       "bookings",
       "payment_schedules",
       "payments",
@@ -58,9 +57,30 @@ describe("migrations", () => {
       );
       expect(n, t).toBe(0);
     }
-    // the only audit entries are the reference-data inserts of migration 10 (system, no user)
+    // the starting master data (owner requirement 2026-11-11): all configurable, none of it real business data
+    const resorts = await db.q<{
+      code: string;
+      name: string;
+      is_active: boolean;
+    }>(`select code, name, is_active from public.resorts order by code`);
+    expect(resorts).toEqual([
+      { code: "SR1", name: "Sample Resort One", is_active: true },
+      { code: "SR2", name: "Sample Resort Two", is_active: true },
+      { code: "SR3", name: "Sample Resort Three", is_active: true },
+      { code: "SR4", name: "Sample Resort Four", is_active: true },
+    ]);
+    const cats = await db.q<{ name: string; name_mode: string }>(
+      `select name, name_mode from public.co_categories order by sort_order`,
+    );
+    expect(cats).toEqual([
+      { name: "Agent", name_mode: "listed" },
+      { name: "Partner", name_mode: "listed" },
+      { name: "Own", name_mode: "typed" },
+      { name: "Direct", name_mode: "none" },
+    ]);
+    // the only audit entries are the starting master data of migrations 10, 17 and 18 (system, no user)
     const odd = await db.q(
-      `select 1 from public.audit_logs where table_name not in ('stay_types', 'payment_providers') or actor_id is not null`,
+      `select 1 from public.audit_logs where table_name not in ('stay_types', 'payment_providers', 'co_categories', 'resorts') or actor_id is not null`,
     );
     expect(odd).toEqual([]);
   }, 120_000);
@@ -145,7 +165,8 @@ describe("Row Level Security and privileges (SEC-01..05)", () => {
       "update_booking",
       "update_waiting_payment",
       "update_waiting_refund",
-      "upsert_agent_partner",
+      "upsert_co_category",
+      "upsert_co_entry",
       "upsert_guest",
       "upsert_provider",
       "upsert_resort",

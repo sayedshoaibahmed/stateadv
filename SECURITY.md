@@ -223,4 +223,11 @@ Never in browser code (the bundle scan checks), never for ordinary reads or writ
 - No rate limiting of our own on password re-checks: Supabase Auth's limits apply.
 - `GET /auth/blocked` ends the caller's own session (a harmless "sign-out CSRF").
 - The built-in Supabase email sender reaches only Supabase-team addresses and is rate-limited; production needs a custom sender (Q11).
-- The migrations run on a superuser in my PostgreSQL 17 tests, but as the non-superuser `postgres` on Supabase. Supabase's own settings allow the storage policies and the `auth.users` trigger (verified for 01–10). Migrations 11–16 create only functions, grants and a replaced trigger function, but the first apply is still the real proof.
+- The migrations run on a superuser in my PostgreSQL 17 tests, but as the non-superuser `postgres` on Supabase. Supabase's own settings allow the storage policies and the `auth.users` trigger (verified for 01–10). Migrations 11–16 create only functions, grants and replaced guard functions; migration 17 also renames one table, adds columns, drops two old columns and two old types (data converted first; the hosted tables are empty), and migration 18 inserts four placeholder resorts. The first apply is still the real proof.
+
+## 13. Configurable master data (2026-11-11)
+- C/O categories and names, resorts and stay types are **normal operational settings**: any signed-in, **active** Manager or Owner may change them (Q10: same operational access). Everyone else is refused in the database (`NOT_ALLOWED`; the anonymous role has no execute right). Tests CFG-CO-11, CFG-RES-07, CFG-STAY-04.
+- All changes go through `SECURITY DEFINER` functions with a fixed search path and explicit grants (SEC-04 lists the callable functions exactly); the tables stay read-only for app users; nothing is ever deleted (no-delete trigger on every table, including the new one); every change is audited with the real person.
+- Integrity does not depend on the screens or the functions: `guard_booking` and a composite foreign key enforce the rules, and tests write to the table directly to prove it (CFG-CO-10, CFG-CO-12).
+- A resort logo is accepted only from the resort's own folder in the private bucket and only after the server has checked its real content.
+- Migration 17 uses DROP COLUMN / DROP TYPE after converting the data; see MIGRATION_REVIEW 14.2.

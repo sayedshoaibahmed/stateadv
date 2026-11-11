@@ -55,8 +55,9 @@ export const DB_ERROR_MESSAGES: Record<string, string> = {
   ADJUSTMENT_REASON_REQUIRED:
     "Please give a reason of at least 5 characters for changing the final amount.",
   CO_TYPE_MISMATCH:
-    "Please choose a name from the matching Agent or Partner list.",
-  CO_INACTIVE: "This agent or partner is switched off.",
+    "Please choose a C/O category and, if it has a list, a name from that list.",
+  CO_INACTIVE: "This C/O category or name is switched off.",
+  STAY_TYPE_INACTIVE: "Please choose a stay type that is switched on.",
   CANCELLED_AMOUNTS_LOCKED:
     "The original amounts of a cancelled booking cannot be changed.",
   CANCELLATION_RECORD_LOCKED: "The cancellation record cannot be changed.",

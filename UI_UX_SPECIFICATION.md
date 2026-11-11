@@ -153,10 +153,11 @@ All records with filters: status, method, provider, resort, payment/refund date 
 Month view (desktop), agenda/week view (mobile). Resort filter, Today button, no limit on past/future navigation. Day cells show check-ins/outs and due/collected amounts.
 Day page `/calendar/[date]` tabs: Check-ins · Check-outs · Staying · Payments Received · Refunds · Payments Due, each with quick actions. "Add Booking for this date".
 
-### 3.12 Guests, Resorts, Agents & Partners
+### 3.12 Guests, and Settings → Resorts / C/O (built in M2: `/settings`, `/settings/resorts`, `/settings/co`)
 - Guests: search, detail page with booking history and totals.
-- Resorts: list, add/edit (the Code field is locked after the first booking, with an explanation), logo upload (PNG/JPG/WEBP ≤ 2 MB), deactivate with an explanation.
-- Agents & Partners: two tabs, add/edit/deactivate, booking count.
+- **Settings → Resorts** `/settings/resorts`: every resort in a searchable list (switched-off ones too); add without limit; edit name, location, contact number; logo upload (PNG/JPG/WEBP ≤ 2 MB, straight to private storage, content checked by the server); the **Code is read-only after the first booking** with the explanation; "Switch off" with an explanation that past bookings stay. Four placeholder resorts are there at the start and say they are examples.
+- **Settings → C/O** `/settings/co`: add any category (name + kind: pick from a list / type a name / no name); per category: change it, switch it off, and for a list category a searchable list of its names with add/edit/switch off.
+- Booking forms (M4) use the shared type-to-search picker (`OptionPicker`): only switched-on choices are offered; an old booking still shows its own (even switched-off) choice. Managers and Owners have the same access to all of these screens.
 
 ### 3.13 Collection Reports `/reports`
 Report cards per PRD §5.16 (including Refund Report and Cancellation Report). Each report: filters → summary row → table → [Download CSV] [Download PDF]. The header states the date and rule used, e.g. "Collection by payment date · Approved payments only · Refunds by refund date · IST".
@@ -183,7 +184,7 @@ Audit timeline with filters (user, action, record type, resort, date), including
 - Add User with role **Owner** is available only to Owners. It asks for a reason and the Owner's own password, and is shown as a dashboard alert to all users (O6).
 
 ### 3.17 Settings → Stay Types / Payment Apps / System status
-Add, rename and deactivate items in the lists. The system page shows the PDF queue, last backup and data checks.
+**Stay Types** `/settings/stay-types` (built in M2): add any number, rename, switch on/off, searchable; the first three are marked as examples. Payment apps and the system status follow in later milestones. Add, rename and deactivate items in the lists. The system page shows the PDF queue, last backup and data checks.
 
 ### 3.18 My Account `/account` (every user)
 - Shows name, email, role label. The role is read-only.

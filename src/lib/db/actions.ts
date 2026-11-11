@@ -21,7 +21,7 @@ async function run<T = Saved>(name: string, args: Json): Promise<Result<T>> {
 }
 
 // ---------------------------------------------------------------- bookings
-export const createBooking = (
+export const createBooking = async (
   payload: Json,
   plan: Json[],
   idempotencyKey: string,
@@ -32,7 +32,7 @@ export const createBooking = (
     p_idem: idempotencyKey,
   });
 
-export const updateBooking = (
+export const updateBooking = async (
   id: string,
   expectedVersion: number,
   payload: Json,
@@ -48,7 +48,7 @@ export const updateBooking = (
   });
 
 /** Going backwards (checked-in → confirmed, checked-out → checked-in) needs a reason of at least 5 characters. */
-export const setBookingStatus = (
+export const setBookingStatus = async (
   id: string,
   expectedVersion: number,
   status: "confirmed" | "checked_in" | "checked_out",
@@ -61,7 +61,7 @@ export const setBookingStatus = (
     p_reason: reason ?? null,
   });
 
-export const cancelBooking = (
+export const cancelBooking = async (
   id: string,
   expectedVersion: number,
   o: {
@@ -84,7 +84,7 @@ export const cancelBooking = (
     p_plan: o.plan ?? null,
   });
 
-export const changeCancellationCharge = (
+export const changeCancellationCharge = async (
   id: string,
   expectedVersion: number,
   chargePaise: number,
@@ -99,7 +99,7 @@ export const changeCancellationCharge = (
     p_plan: plan ?? null,
   });
 
-export const setPaymentSchedule = (
+export const setPaymentSchedule = async (
   id: string,
   expectedVersion: number,
   plan: Json[],
@@ -114,14 +114,14 @@ export const setPaymentSchedule = (
     p_reason: reason,
   });
 
-export const planPreview = (id: string, newAmountDuePaise?: number) =>
+export const planPreview = async (id: string, newAmountDuePaise?: number) =>
   run<Record<string, number | string>>("plan_preview", {
     p_id: id,
     p_new_amount_due: newAmountDuePaise ?? null,
   });
 
 // ---------------------------------------------------------------- payments
-export const addPayment = (
+export const addPayment = async (
   payload: Json,
   files: Json[],
   idempotencyKey: string,
@@ -131,7 +131,7 @@ export const addPayment = (
     p_files: files,
     p_idem: idempotencyKey,
   });
-export const updateWaitingPayment = (
+export const updateWaitingPayment = async (
   id: string,
   expectedVersion: number,
   payload: Json,
@@ -143,7 +143,7 @@ export const updateWaitingPayment = (
     p_payload: payload,
     p_reason: reason,
   });
-export const decidePayment = (
+export const decidePayment = async (
   id: string,
   expectedVersion: number,
   decision: "approve" | "reject" | "reverse",
@@ -158,7 +158,7 @@ export const decidePayment = (
       });
 
 // ----------------------------------------------------------------- refunds
-export const addRefund = (
+export const addRefund = async (
   payload: Json,
   files: Json[],
   idempotencyKey: string,
@@ -168,7 +168,7 @@ export const addRefund = (
     p_files: files,
     p_idem: idempotencyKey,
   });
-export const updateWaitingRefund = (
+export const updateWaitingRefund = async (
   id: string,
   expectedVersion: number,
   payload: Json,
@@ -180,7 +180,7 @@ export const updateWaitingRefund = (
     p_payload: payload,
     p_reason: reason,
   });
-export const decideRefund = (
+export const decideRefund = async (
   id: string,
   expectedVersion: number,
   decision: "approve" | "reject" | "reverse",
@@ -195,14 +195,14 @@ export const decideRefund = (
       });
 
 // ------------------------------------------------------------- proof files
-export const addProofs = (
+export const addProofs = async (
   kind: "payment" | "refund",
   parentId: string,
   files: Json[],
 ) => run("add_proofs", { p_kind: kind, p_parent: parentId, p_files: files });
-export const hideProof = (proofId: string, reason: string) =>
+export const hideProof = async (proofId: string, reason: string) =>
   run("hide_proof", { p_id: proofId, p_reason: reason });
-export const addCorrectionFiles = (
+export const addCorrectionFiles = async (
   kind: "payment" | "refund",
   parentId: string,
   reason: string,
@@ -216,7 +216,7 @@ export const addCorrectionFiles = (
   });
 
 // ------------------------------------------------------------- master data
-export const upsertResort = (o: {
+export const upsertResort = async (o: {
   id?: string;
   code: string;
   name: string;
@@ -232,9 +232,9 @@ export const upsertResort = (o: {
     p_contact_number: o.contactNumber ?? null,
     p_logo_path: o.logoPath ?? null,
   });
-export const setResortActive = (id: string, active: boolean) =>
+export const setResortActive = async (id: string, active: boolean) =>
   run("set_resort_active", { p_id: id, p_active: active });
-export const upsertGuest = (o: {
+export const upsertGuest = async (o: {
   id?: string;
   fullName: string;
   mobile: string;
@@ -250,23 +250,39 @@ export const upsertGuest = (o: {
     p_address: o.address ?? null,
     p_notes: o.notes ?? null,
   });
-export const upsertAgentPartner = (o: {
+/** A C/O category. `nameMode`: "listed" = a name from its list, "typed" = a typed name, "none" = no name. */
+export const upsertCoCategory = async (o: {
+  id?: number;
+  name: string;
+  nameMode?: "listed" | "typed" | "none";
+  active?: boolean;
+  sortOrder?: number;
+}) =>
+  run("upsert_co_category", {
+    p_id: o.id ?? null,
+    p_name: o.name,
+    p_name_mode: o.nameMode ?? "listed",
+    p_is_active: o.active ?? true,
+    p_sort_order: o.sortOrder ?? 100,
+  });
+/** A name inside a "listed" C/O category (an agent, a partner, a company ...). */
+export const upsertCoEntry = async (o: {
   id?: string;
-  type: "agent" | "partner";
+  categoryId: number;
   name: string;
   mobile?: string;
   notes?: string;
   active?: boolean;
 }) =>
-  run("upsert_agent_partner", {
+  run("upsert_co_entry", {
     p_id: o.id ?? null,
-    p_type: o.type,
+    p_category_id: o.categoryId,
     p_name: o.name,
     p_mobile: o.mobile ?? null,
     p_notes: o.notes ?? null,
     p_is_active: o.active ?? true,
   });
-export const upsertStayType = (o: {
+export const upsertStayType = async (o: {
   id?: number;
   name: string;
   active?: boolean;
@@ -278,7 +294,7 @@ export const upsertStayType = (o: {
     p_is_active: o.active ?? true,
     p_sort_order: o.sortOrder ?? 100,
   });
-export const upsertProvider = (o: {
+export const upsertProvider = async (o: {
   id?: number;
   method: "upi" | "card";
   name: string;

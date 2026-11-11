@@ -34,7 +34,7 @@ async function newBooking(final = 500000, over: Json = {}) {
     resort_id: w.resorts.A.id,
     guest_id: w.guestId,
     pax: 2,
-    co_category: "direct",
+    co_category_id: w.cat.direct,
     stay_type_id: w.stayTypeId,
     booking_date: d,
     check_in_at: `${in1}T14:00:00+05:30`,

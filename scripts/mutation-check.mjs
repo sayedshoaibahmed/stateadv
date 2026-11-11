@@ -76,7 +76,7 @@ const MUTATIONS = [
   },
   {
     name: "cancellation allowed to rewrite original amounts",
-    file: "06",
+    file: "17",
     from: "        raise exception 'CANCELLED_AMOUNTS_LOCKED'\n          using detail = 'The original amounts of a cancelled booking cannot be changed.';",
     to: "        null;",
   },
@@ -285,6 +285,73 @@ const MUTATIONS = [
     file: "15",
     from: "    if v_pending = 0 then",
     to: "    if false then",
+  },
+  // ---- configurable C/O, resorts and stay types (migrations 13, 14, 17) -----
+  {
+    name: "a switched-off C/O category accepted for a NEW booking (database guard)",
+    file: "17",
+    from: "    if not cat.is_active then",
+    to: "    if false then",
+  },
+  {
+    name: "a switched-off C/O name accepted for a NEW booking (database guard)",
+    file: "17",
+    from: "      if not ent.is_active then",
+    to: "      if false then",
+  },
+  {
+    name: "a C/O name from another category accepted (database guard)",
+    file: "17",
+    from: "      if not found or ent.category_id <> new.co_category_id then",
+    to: "      if not found then",
+  },
+  {
+    name: "a switched-off stay type accepted for a NEW booking (database guard)",
+    file: "17",
+    from: "    if not found or not stay.is_active then",
+    to: "    if not found then",
+  },
+  {
+    name: "renaming a category rewrites old bookings (category-name copy follows the master data)",
+    file: "17",
+    from: "    new.co_category_name := old.co_category_name;",
+    to: "    select c.name into new.co_category_name from public.co_categories c where c.id = new.co_category_id;",
+  },
+  {
+    name: "renaming a stay type rewrites old bookings (stay-type copy follows the master data)",
+    file: "17",
+    from: "    new.stay_type_name := old.stay_type_name;",
+    to: "    select s.name into new.stay_type_name from public.stay_types s where s.id = new.stay_type_id;",
+  },
+  {
+    name: "renaming a C/O name rewrites old bookings (name copy follows the master data)",
+    file: "17",
+    from: "      new.co_name := old.co_name;",
+    to: "      select e.name into new.co_name from public.co_entries e where e.id = new.co_entry_id;",
+  },
+  {
+    name: "booking numbers can repeat when the counter row is missing",
+    file: "14",
+    from: "          (select coalesce(max(b.booking_seq), 0) + 1 from public.bookings b where b.resort_id = p_resort and b.booking_year = v_year))",
+    to: "          1)",
+  },
+  {
+    name: "a name can be moved to another C/O category",
+    file: "13",
+    from: "      if exists (select 1 from public.co_entries e where e.id = p_id and e.category_id <> p_category_id) then",
+    to: "      if false then",
+  },
+  {
+    name: "names accepted in a category that has no list",
+    file: "13",
+    from: "  if v_mode <> 'listed' then",
+    to: "  if false then",
+  },
+  {
+    name: "C/O master data writable without an active account",
+    file: "13",
+    from: "grant execute on function public.upsert_co_category(smallint, text, text, boolean, int) to authenticated;",
+    to: "grant execute on function public.upsert_co_category(smallint, text, text, boolean, int) to authenticated, anon;",
   },
 ];
 

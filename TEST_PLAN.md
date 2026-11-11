@@ -361,3 +361,16 @@ Flows F1–F10 (UI spec §4) on desktop and mobile. Plus: keyboard-only booking 
 | CON-12..14 | simultaneous refunds on a running booking; same numbers running vs cancelled; simultaneous edits of two waiting refunds | skipped | ✅ |
 
 Mutation check now has 42 weakened versions (11 added for these decisions).
+
+## 2.18 Configurable C/O, resorts and stay types (tests/db/configurable-master-data.test.ts, migration-17-data.test.ts, concurrency.pg.test.ts, tests/unit/master-data.test.ts)
+| IDs | What | PGlite | Real PG 17 (local) |
+|---|---|---|---|
+| CFG-CO-01..12 | new categories of any name/kind; no fixed number; validation and unique names; names only in list categories, edit, no move; use on bookings; renames never rewrite history; switch-off stops NEW use but old bookings stay readable and editable; mode change; guard and copies cannot be bypassed; Manager and Owner allowed, everyone else refused | pass | pass |
+| CFG-RES-01..07 | four placeholders exist and are ordinary; unlimited resorts; edit details, code locked after first booking, logo; Booking IDs never change and numbering continues; switch-off keeps history, payments and edits; rules; authorization | pass | pass |
+| CFG-STAY-01..04 | unlimited stay types; rename keeps old bookings; switch-off; authorization | pass | pass |
+| MIG17-01..07 | **data-preserving conversion** of a database that already holds bookings, payments, plans and agents | pass | pass |
+| CON-15..18 | simultaneous: same category created 10×; renames racing bookings; 30 bookings across 5 resorts (unique, gap-free); resort switched off during bookings | skipped | pass |
+| MDS-01..10 | type-to-search rules (switched-off choices, ranking, accents), settings form rules | unit | — |
+| STO/ERR/other | error-message coverage includes `STAY_TYPE_INACTIVE` | unit | — |
+
+Mutation check: **53** weakened versions (11 added here). The booking screens that use the picker belong to M4; the picker's rules are tested (MDS-*) and the management screens are built, type-checked and build-tested, but have **not** been exercised in a browser against a real project.

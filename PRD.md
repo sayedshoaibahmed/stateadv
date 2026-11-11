@@ -11,7 +11,7 @@
 
 ## 1. Purpose
 
-The owner runs four resorts (the number will grow). Today most booking and payment records are kept by hand. The owner needs **one internal web application** that answers, for each resort and in total:
+The owner runs four resorts today (the number will grow; resorts are configured in the app, never fixed in the code). Today most booking and payment records are kept by hand. The owner needs **one internal web application** that answers, for each resort and in total:
 
 - How many bookings were received.
 - How much money is expected, and when.
@@ -58,7 +58,7 @@ Users are assumed to be non-technical, often on mobile phones, sometimes on slow
 | Booking ID | Automatic number per resort and year, e.g. `RSA-2026-000001` |
 | PAX | Number of people in the booking |
 | Pricing Method | **Per person per night** or **Per person per stay** |
-| C/O | Who brought the booking: Agent, Partner, Own or Direct |
+| C/O | Who brought the booking. The categories (for example Agent, Partner, Own, Direct) and the names inside them are **configured by Managers and Owners**; nothing is a fixed list |
 | Extra Charges | Optional additional amount (e.g. extra bed, food) |
 | Final Booking Amount | Total Amount − Discount (± Manual Adjustment, with reason) |
 | Payment Plan | When the guest is expected to pay, and how much on each date |
@@ -117,13 +117,15 @@ Users are assumed to be non-technical, often on mobile phones, sometimes on slow
   3. While there is only one active Owner, the Users page and the dashboard show a visible notice to Owners ("Only one Owner account exists. Add a second Owner so access can be recovered"), and the recovery limitations in SECURITY.md §3.2a apply.
 - FR-AUTH-15 **Adding the second Owner later** *(O6, decided 2026-11-11)*: only the existing Owner can do it, in the app, through Settings → Users → Add User with the role **Owner** (FR-AUTH-11). It creates a real account with a temporary password that the new Owner must change at first login. It needs a written reason and the acting Owner's password re-entered, and is audited and shown as a dashboard alert. Sending an email invitation link is not part of version 1 (it needs the production email sender, Q11). The second Owner can be added at any time, with no development work.
 
-### 5.2 Resort management
-- FR-RES-1 Add, edit and view a resort.
+### 5.2 Resort management (fully configurable, owner requirement 2026-11-11)
+- FR-RES-1 Managers and Owners add, edit and view resorts, **without any fixed limit**.
 - FR-RES-2 Fields: Resort Code (unique, 2–10 uppercase letters/digits), Resort Name, Location, Contact Number, Logo.
-- FR-RES-3 The Resort Code is used in Booking IDs, so it **cannot be changed once the resort has any booking**.
-- FR-RES-4 Activate or deactivate a resort. New bookings cannot be created for an inactive resort. All old records stay visible and searchable.
-- FR-RES-5 No resort is hard-coded anywhere. A new resort gets every feature automatically, because all data is linked by `resort_id`.
+- FR-RES-3 The Resort Code is the first part of every Booking ID, so it **cannot be changed once the resort has any booking**. Until then it can be edited. Editing a resort never changes an existing Booking ID.
+- FR-RES-4 Activate or deactivate a resort. New bookings cannot be created for an inactive resort. All old records (bookings, payments, refunds, files, audit history) stay visible and searchable.
+- FR-RES-5 No resort is hard-coded anywhere (database logic or screens). A new resort gets every feature automatically, because all data is linked by `resort_id`.
 - FR-RES-6 Resorts are never deleted.
+- FR-RES-7 **Four placeholder resorts** are created when the system is first set up (Sample Resort One to Four, codes SR1–SR4), only so the screens can be tried at once. They are not real names: the owner renames them (or switches them off) in Settings → Resorts. Rename the codes before the first real booking if different codes are wanted.
+- FR-RES-8 Booking forms offer only active resorts, with type-to-search.
 
 ### 5.3 Guest management
 - FR-GST-1 Store Guest Name, Mobile Number, and optional details (email, city/address, notes).
@@ -132,23 +134,23 @@ Users are assumed to be non-technical, often on mobile phones, sometimes on slow
 - FR-GST-4 While entering a booking, the app suggests existing guests with the same mobile number. Mobile numbers are **not** forced to be unique (families share phones).
 - FR-GST-5 Each booking keeps a copy of the guest name and mobile at booking time. Later edits to the guest record do not rewrite old bookings.
 
-### 5.4 Agents and partners
-- FR-AP-1 A reusable list of Agent names and Partner names, with optional mobile and notes.
-- FR-AP-2 Add, edit and deactivate entries. Deactivated names stay on old bookings.
-- FR-AP-3 In the booking form the user picks from the list, or adds a new name quickly.
+### 5.4 C/O categories and names (fully configurable, owner requirement 2026-11-11)
+- FR-AP-1 Managers and Owners create **any number of C/O categories** and name them freely (for example Agent, Partner, Own, Direct, Corporate, Website). Each category has a **kind**: *pick a name from the category's list* (like Agent), *type a name on the booking* (like Own), or *no name* (like Direct). Agent, Partner, Own and Direct are only the starting examples.
+- FR-AP-2 For a "list" category, Managers and Owners add, edit and switch off the **names** in it (an agent, a partner, a company ...), with optional mobile and notes. A name cannot be moved to another category.
+- FR-AP-3 In the booking form the person searches (type to search) and picks the category and, if it has a list, the name. Only switched-on categories and names are offered for a new or changed choice.
+- FR-AP-4 **History is protected.** Each booking keeps its own copy of the category name, the kind and the name as they were when chosen. Renaming or switching off a category or a name never rewrites or hides an old booking, and an old booking that uses a switched-off choice can still be opened, edited and saved. Categories and names are never deleted.
 
 ### 5.5 Booking management
 - FR-BK-1 Booking fields: Resort, Guest Name, Mobile, PAX, C/O Category, C/O Name, Stay Type, Booking Date, Check-in date and time, Check-out date and time, Pricing Method, Tariff Per Person, Number of Nights, Extra Charges, Total Amount, Discount, Final Booking Amount, Manual Adjustment Reason, Remarks.
-- FR-BK-2 **C/O** (decided Q3), exactly four categories:
+- FR-BK-2 **C/O** (decided Q3, made configurable 2026-11-11): the categories are configured in Settings (FR-AP-1). The rule per category *kind*:
 
-| Category | Name rule |
-|---|---|
-| Agent | Agent name **required**, chosen from the Agents list |
-| Partner | Partner name **required**, chosen from the Partners list |
-| Own | Person/source name **required** (free text, with suggestions from earlier entries) |
-| Direct | No name |
+| Category kind | Name rule | Starting example |
+|---|---|---|
+| List | A name **required**, chosen from that category's list | Agent, Partner |
+| Typed | A name **required**, typed on the booking (with suggestions from earlier entries) | Own |
+| None | No name | Direct |
 
-- FR-BK-3 **Stay Type** comes from an editable list, starting with **Resort Stay, Day Outing, Package** (decided Q2). New types can be added and old ones deactivated in Settings.
+- FR-BK-3 **Stay Type** comes from a list that Managers and Owners configure, with **no fixed limit**: it starts with the examples **Resort Stay, Day Outing, Package** (decided Q2). Any stay type can be added, renamed or switched off in Settings; the booking form searches and offers only switched-on types. Each booking keeps its own copy of the stay type name, so renaming or switching one off never changes an old booking, and old bookings that use a switched-off type stay readable and editable.
 - FR-BK-4 **Amount calculation** (decided Q1):
   1. The user selects the **Pricing Method**:
      - **Per person per night:** Base Amount = PAX × Tariff × Number of Nights.
@@ -461,7 +463,8 @@ Room/cottage allocation, percentage discounts, agent commission, SMS/WhatsApp co
 | 2026-11-11 | **Q11** Deferred. Costs documented as estimates only. No subscriptions until confirmed before production. | Owner |
 | 2026-11-11 | **Q1** Two pricing methods (per person per night; per person per stay) chosen in the form. Optional Extra Charges and Discount. Manual adjustment of the final amount only with a mandatory reason and audit history. | Owner |
 | 2026-11-11 | **Q2** Stay Types: Resort Stay, Day Outing, Package. Editable list. | Owner |
-| 2026-11-11 | **Q3** Agent, Partner and Own require a name. Direct needs no name. | Owner |
+| 2026-11-11 | **Q3** Agent, Partner and Own require a name. Direct needs no name. *(Made configurable the same day, see Q18: these are now the starting categories and their kinds.)* | Owner |
+| 2026-11-11 | **Q18** C/O categories and names, resorts and stay types are **configured by Managers and Owners themselves**, with no fixed list or limit. Four placeholder resorts start the system. Bookings keep their own copy of the names, so renaming or switching off never rewrites history. | Owner |
 | 2026-11-11 | **Q6b** No automatic advance suggestion. The user enters the advance and balance. The plan must equal the final amount. | Owner |
 | 2026-11-11 | **Q7a** After cancellation/no-show, the cancellation charge is the amount due. The original amount is shown separately and is no longer expected. | Owner |
 | 2026-11-11 | **Q7b** Refunds have their own approval process, history and self-approval indicator. | Owner |

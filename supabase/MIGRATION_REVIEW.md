@@ -336,3 +336,36 @@ Migrations 11–15 had not been applied, so 12, 14 and 15 were edited in place. 
 | New simultaneous-request tests: CON-12 (running booking, 10 refunds → exactly 3 of 30000 fit in 100000), CON-13 (same numbers: running → 1 of 70000, cancelled → 8 of 70000), CON-14 (two waiting refunds raised at once → exactly one) | pass |
 | Existing tests that built refunds on a running, fully paid booking (REF-*, REV-02/03, COR-05, REVERSAL) | updated to cancel the booking first (charge 0), because under decision 5 a running booking cannot refund money that is due |
 | Existing tests with one-to-four-character reasons | fixture text lengthened; no assertion weakened |
+
+## 14. Configurable C/O, resorts and stay types (owner requirement 2026-11-11)
+
+### 14.1 What changed
+| File | Change |
+|---|---|
+| **17** `configurable_co` (new) | New table `co_categories` (seeded with Agent / Partner / Own / Direct as **examples**). `agents_partners` is renamed `co_entries` and gets `category_id` (filled from the old `type`). `bookings` gets `co_category_id`, `co_category_name`, `co_mode`, `stay_type_name` (all filled for existing rows); `agent_partner_id` is renamed `co_entry_id`; the new `bookings_co_rules` is driven by `co_mode`; composite FK entry↔category; `guard_booking` replaced (copies of names, switched-off choices); the old column `bookings.co_category`, column `co_entries.type` and enum types `co_category`, `partner_type` are dropped; the new table gets RLS, the read policy, grants, no-delete and audit triggers. |
+| **18** `initial_resorts` (new) | Four placeholder resorts (SR1–SR4, "Sample Resort One … Four"), only where the code and name are free; safe to run twice. |
+| 13 (edited, unapplied) | `upsert_agent_partner` replaced by `upsert_co_category` and `upsert_co_entry` |
+| 14 (edited, unapplied) | `create_booking` / `update_booking` use `co_category_id`, `co_entry_id`, `co_name`; `resolve_co` is driven by the category's kind; new internal `check_stay_type`; `next_booking_code` never hands out a number that already exists |
+
+### 14.2 What needs the project owner's approval at apply time
+Migration 17 contains **DROP COLUMN (×2) and DROP TYPE (×2)**, each marked `-- DESTRUCTIVE-APPROVED` with the reason, because the information moves into the new columns first. On the hosted project **the affected tables are empty** (0 bookings, 0 agents/partners — checked read-only 2026-11-11), so nothing can be lost there; the same migration was also proven on a database that holds data (below). The approval to apply is still the project owner's.
+
+### 14.3 Proof that existing data is preserved (test `MIG17-*`, PGlite and real PostgreSQL 17)
+A database is built up to migration 16, filled with four bookings (one per old category, with amounts, a plan, an approved payment) and two agents/partners, and only then are 17 and 18 applied. Verified: booking codes, resort, amounts, status, payments **identical**; every booking has the right category, mode, name and stay-type copy; the old entries keep their ids and names and sit in the right category; the old columns, tables and types are gone with no leftover names; the converted bookings can be edited, new bookings can use the old names, numbering continues; RLS, privileges and triggers are intact on the renamed and the new table. Side effect, by design: each converted booking's version goes up by one.
+
+### 14.4 Defects found by these tests and fixed before review
+1. **Migration 17 failed on a database with bookings** ("cannot ALTER TABLE … pending trigger events"): the conversion queued the end-of-transaction books-must-balance checks. Fixed by running them (`set constraints all immediate`) before the structural change. An empty database, like the hosted one, would never have shown this.
+2. **Booking numbers could repeat** when bookings existed but the counter row did not (bookings added outside `create_booking`, imports). `next_booking_code` now never goes at or below an existing number (the counter row is still the lock).
+3. **A migration contained a non-ASCII arrow** that a non-UTF-8 database refuses. All migrations are ASCII; `npm run check:migrations` now enforces it.
+4. **`src/lib/db/actions.ts` exported non-async functions**, which Next.js refuses as server actions; nothing imported it before, so the build had not noticed. All 23 are now async.
+
+### 14.5 Results (local; hosted = read-only checks only)
+| Check | Result |
+|---|---|
+| Migrations 01–18 apply from scratch | PGlite and real PostgreSQL 17.11 |
+| Database + concurrency tests, real PostgreSQL 17.11 | 368 pass |
+| Concurrency (real PG 17): CON-15 (same category created 10×) · CON-16 (renames racing bookings) · CON-17 (30 bookings across 5 resorts: unique, gap-free) · CON-18 (resort switched off while bookings are saved) | pass |
+| Function counts | 85 in schema `public`, 38 callable by signed-in users; 102 triggers; 25 policies |
+
+### 14.6 Known test-environment issue (open, not a database defect)
+On the Windows development machine the file `tests/db/concurrency.pg.test.ts` (dozens of simultaneous connections) occasionally ends because its Node worker process dies with exit code `0xC0000409` (a process-level fatal, no assertion output, no crash in the PostgreSQL server log). Measured: about 1 run in 4 at first; after giving every connection an error listener, closing connections one at a time, and removing queries that overlapped on one shared connection, about 1 run in 10. A stand-alone script that opens 30 connections at once, 60 times in a row, six times over, never crashes, so it is not the PostgreSQL driver or the server. **Every run that completed passed all 18 tests; no run ever produced a failing assertion.** `npm run test:pg17` and the CI job run this file separately from the other files. Not yet seen on Linux (CI has not run). If it recurs in CI it should be investigated rather than re-run blindly.

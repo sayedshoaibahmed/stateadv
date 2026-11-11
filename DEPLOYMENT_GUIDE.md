@@ -197,3 +197,6 @@ The built-in Supabase email sender delivers only to Supabase-team addresses and 
 
 ### 12.6 Real-system checks
 `supabase/HOSTED_VERIFICATION.md` lists each check, what it needs, and what a pass looks like. None of them has been run yet.
+
+## 13. Settings after setup (2026-11-11)
+After the first Owner exists, open Settings and make the lists your own: rename the four placeholder resorts (do it before the first real booking if you want different resort codes), add your real resorts, C/O categories and names, and stay types. Anyone with a Manager or Owner account can do this; no developer is needed when the business changes. Migrations applied in this stage: 11–18 (see DATABASE_SCHEMA 5b for the order).

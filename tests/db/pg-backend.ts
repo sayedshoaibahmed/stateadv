@@ -38,6 +38,7 @@ export async function createPgDb(
   migrationsDir: string,
   files: string[],
   applySession: (who: never) => string,
+  rest: string[] = [],
 ): Promise<TestDb> {
   const base = assertDisposable(process.env.STATEADV_PG_URL as string);
   const name = `t_${randomUUID().replace(/-/g, "")}`;
@@ -77,6 +78,15 @@ export async function createPgDb(
   const db: TestDb = {
     pg: client,
     url: url.toString(),
+    async applyRest() {
+      for (const file of rest) {
+        try {
+          await client.query(readFileSync(join(migrationsDir, file), "utf8"));
+        } catch (e) {
+          throw new Error(`Migration ${file} failed: ${(e as Error).message}`);
+        }
+      }
+    },
     async q(sql, params) {
       const r = await client.query(sql, params as unknown[]);
       return r.rows as never;

@@ -7,12 +7,12 @@ Rules for every check
 - Test accounts use addresses you control (`you+owner-test@…`). Delete nothing: switch test people off instead; the system never deletes records.
 - Do not mark a check as passed unless its "pass" line was actually observed.
 
-## 0. Before anything: apply migrations 11–16 (needs your approval)
+## 0. Before anything: apply migrations 11–18 (needs your approval)
 | Step | Pass |
 |---|---|
-| `supabase migration list` and `db push --dry-run --skip-vault` | lists exactly migrations 11–16 (**done 2026-11-11**, six files) |
-| `db push --skip-vault --yes` (after approval) | six "Applying migration…" lines, exit 0 |
-| Read-only: function count | 83 functions in `public`; 37 callable by signed-in users (the list in test SEC-04); only `recover_owner_account` is service-role only; none callable by `anon` |
+| `supabase migration list` and `db push --dry-run --skip-vault` | lists exactly migrations 11–18 (eight files) |
+| `db push --skip-vault --yes` (after approval) | eight "Applying migration…" lines, exit 0 |
+| Read-only: function count | 85 functions in `public`; 38 callable by signed-in users (the list in test SEC-04); only `recover_owner_account` is service-role only; none callable by `anon` |
 | Read-only: `db advisors` | no errors or warnings (INFO notes reviewed) |
 | Read-only: anonymous REST probe of one new function | HTTP 401/permission denied |
 
@@ -59,6 +59,19 @@ Use `plan_preview`/`create_booking` etc. via the Server Actions once screens exi
 
 ### 5a. Refund limits on the real project (decision 5) — status: not run
 With a throw-away booking (amount due 5,000; approved payments 7,000): a running booking accepts refunds up to 2,000 in total (waiting ones count) and refuses the next rupee; after cancelling it with a 5,000 charge the same booking accepts up to 7,000. Two people recording refunds at the same moment never exceed the limit.
+
+### 5b. Settings: C/O, resorts, stay types (needs the Owner and a Manager) — status: not run
+Migration 17 first (it drops two old columns and two old types: the hosted tables are empty, checked read-only before approval).
+| # | Do | Pass |
+|---|---|---|
+| M1 | Open Settings → Resorts | exactly the four "Sample Resort" placeholders (SR1–SR4), all switched on |
+| M2 | Rename one, add a fifth resort, switch one off | saved; the switched-off one is not offered for new bookings |
+| M3 | Settings → C/O: add "Corporate" (list), add a name inside, add "Website" (no name), rename "Agent" | all saved; renaming changes nothing already booked |
+| M4 | Settings → Stay Types: add "Honeymoon", rename "Package", switch one off | saved; switched-off type not offered |
+| M5 | As the Manager and as the Owner, repeat M2–M4 | both can do everything above; a signed-out visitor is sent to sign-in |
+| M6 | Create a throw-away booking with the new category/name/stay type (needs the booking screens or the API), then rename all three | the booking still shows the OLD names; a new booking shows the new ones |
+| M7 | Upload a logo (PNG) for one resort | saved; a non-image renamed .png is refused |
+Direct database checks (read-only): `co_categories` has Agent, Partner, Own, Direct; types `co_category` and `partner_type` no longer exist; `bookings` has the four copy columns.
 
 ## 6. Storage (RSV-07; needs a signed-in user) — status: not run
 | # | Do | Pass |

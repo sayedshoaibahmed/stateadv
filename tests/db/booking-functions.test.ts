@@ -32,7 +32,7 @@ async function payload(over: Json = {}): Promise<Json> {
     resort_id: w.resorts.A.id,
     guest_id: w.guestId,
     pax: 2,
-    co_category: "direct",
+    co_category_id: w.cat.direct,
     stay_type_id: w.stayTypeId,
     booking_date: today,
     check_in_at: `${in1}T14:00:00+05:30`,
@@ -298,7 +298,7 @@ describe("create_booking", () => {
       ["INVALID_INPUT", { tariff_paise: -1 }],
       ["INVALID_INPUT", { check_in_at: `${in1}T14:00:00` }], // no time zone
       ["INVALID_INPUT", { pricing_method: "monthly" }],
-      ["INVALID_INPUT", { co_category: "friend" }],
+      ["CO_TYPE_MISMATCH", { co_category_id: 9999 }],
       ["INVALID_INPUT", { stay_type_id: 9999 }],
       ["INVALID_INPUT", { resort_id: "not-a-uuid" }],
       ["NOT_FOUND", { resort_id: uid() }],
@@ -313,16 +313,16 @@ describe("create_booking", () => {
         },
       ],
       ["AMOUNT_TOO_LARGE", { pax: 1000, tariff_paise: 1000000000000000 }],
-      ["CO_TYPE_MISMATCH", { co_category: "agent" }],
+      ["CO_TYPE_MISMATCH", { co_category_id: w.cat.agent }],
       [
         "CO_TYPE_MISMATCH",
-        { co_category: "agent", agent_partner_id: w.partnerId },
+        { co_category_id: w.cat.agent, co_entry_id: w.partnerId },
       ],
       [
         "CO_TYPE_MISMATCH",
-        { co_category: "partner", agent_partner_id: w.agentId },
+        { co_category_id: w.cat.partner, co_entry_id: w.agentId },
       ],
-      ["INVALID_INPUT", { co_category: "own" }],
+      ["INVALID_INPUT", { co_category_id: w.cat.own }],
     ];
     const before = (
       await q<{ n: string }>(`select count(*)::text n from public.bookings`)
@@ -339,30 +339,33 @@ describe("create_booking", () => {
 
   it("BKF-10: C/O rules: agent, partner, own and direct store the right name", async () => {
     const a = await create(
-      await payload({ co_category: "agent", agent_partner_id: w.agentId }),
+      await payload({ co_category_id: w.cat.agent, co_entry_id: w.agentId }),
       [await row(2, 500000)],
     );
     expect((await booking(a.id)).co_name).toBe("Test Agent");
     const p = await create(
-      await payload({ co_category: "partner", agent_partner_id: w.partnerId }),
+      await payload({
+        co_category_id: w.cat.partner,
+        co_entry_id: w.partnerId,
+      }),
       [await row(2, 500000)],
     );
     expect((await booking(p.id)).co_name).toBe("Test Partner");
     const o = await create(
-      await payload({ co_category: "own", co_name: " Test Cousin " }),
+      await payload({ co_category_id: w.cat.own, co_name: " Test Cousin " }),
       [await row(2, 500000)],
     );
     expect((await booking(o.id)).co_name).toBe("Test Cousin");
     const d = await create(
       await payload({
-        co_category: "direct",
+        co_category_id: w.cat.direct,
         co_name: "ignored",
-        agent_partner_id: w.agentId,
+        co_entry_id: w.agentId,
       }),
       [await row(2, 500000)],
     );
     const bd = await booking(d.id);
-    expect([bd.co_name, bd.agent_partner_id]).toEqual([null, null]);
+    expect([bd.co_name, bd.co_entry_id]).toEqual([null, null]);
   });
 
   it("BKF-11: an inactive resort, stay type or agent cannot be used for a new booking", async () => {
@@ -375,19 +378,19 @@ describe("create_booking", () => {
     );
     await call(`select public.set_resort_active($1, true)`, [w.resorts.B.id]);
     await call(
-      `select public.upsert_agent_partner($1, 'agent', 'Test Agent', null, null, false)`,
-      [w.agentId],
+      `select public.upsert_co_entry($1, $2, 'Test Agent', null, null, false)`,
+      [w.agentId, w.cat.agent],
     );
     await expectDbError(
       create(
-        await payload({ co_category: "agent", agent_partner_id: w.agentId }),
+        await payload({ co_category_id: w.cat.agent, co_entry_id: w.agentId }),
         [await row(2, 500000)],
       ),
       "CO_INACTIVE",
     );
     await call(
-      `select public.upsert_agent_partner($1, 'agent', 'Test Agent', null, null, true)`,
-      [w.agentId],
+      `select public.upsert_co_entry($1, $2, 'Test Agent', null, null, true)`,
+      [w.agentId, w.cat.agent],
     );
   });
 

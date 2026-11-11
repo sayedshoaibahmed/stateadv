@@ -137,9 +137,14 @@ begin
   if v_code is null then
     raise exception 'NOT_FOUND' using detail = 'Resort not found.';
   end if;
+  -- The counter row is the lock. As a second safety net the number is never at or below one that already exists for this
+  -- resort and year (for example bookings added outside this function, or imported): numbers are never reused.
   insert into public.booking_sequences as s (resort_id, year, last_value)
-  values (p_resort, v_year, 1)
-  on conflict (resort_id, year) do update set last_value = s.last_value + 1
+  values (p_resort, v_year,
+          (select coalesce(max(b.booking_seq), 0) + 1 from public.bookings b where b.resort_id = p_resort and b.booking_year = v_year))
+  on conflict (resort_id, year) do update
+    set last_value = greatest(s.last_value,
+                              (select coalesce(max(b.booking_seq), 0) from public.bookings b where b.resort_id = p_resort and b.booking_year = v_year)) + 1
   returning s.last_value into v_seq;
   booking_code := v_code || '-' || v_year::text || '-' || lpad(v_seq::text, 6, '0');
   booking_year := v_year; booking_seq := v_seq;
@@ -303,37 +308,67 @@ end
 $$;
 revoke all on function public.calc_booking_amounts(public.pricing_method, bigint, bigint, bigint, bigint, bigint, text, timestamptz, timestamptz) from public, anon, authenticated;
 
--- Validates C/O fields and returns the name to store.
-create function public.resolve_co(p_category public.co_category, p_partner uuid, p_own_name text, p_require_active boolean)
-returns text
+-- A stay type for a NEW or CHANGED choice: it must exist and be switched on (Managers configure the list).
+create function public.check_stay_type(p_stay smallint)
+returns void
 language plpgsql stable security definer set search_path = ''
 as $$
-declare a public.agents_partners;
+declare st record;
 begin
-  if p_category in ('agent', 'partner') then
-    select * into a from public.agents_partners x where x.id = p_partner;
-    if not found or a.type::text <> p_category::text then
-      raise exception 'CO_TYPE_MISMATCH' using detail = 'Please choose a name from the matching Agent or Partner list.';
-    end if;
-    if p_require_active and not a.is_active then
-      raise exception 'CO_INACTIVE' using detail = 'This agent or partner is switched off.';
-    end if;
-    return a.name;
-  elsif p_category = 'own' then
-    if p_own_name is null then
-      raise exception 'INVALID_INPUT' using detail = 'Please enter the name for an Own booking.';
-    end if;
-    return left(p_own_name, 120);
+  select s.is_active into st from public.stay_types s where s.id = p_stay;
+  if not found then
+    raise exception 'INVALID_INPUT' using detail = 'Please choose a stay type.';
   end if;
-  return null;   -- direct
+  if not st.is_active then
+    raise exception 'STAY_TYPE_INACTIVE' using detail = 'This stay type is switched off.';
+  end if;
 end
 $$;
-revoke all on function public.resolve_co(public.co_category, uuid, text, boolean) from public, anon, authenticated;
+revoke all on function public.check_stay_type(smallint) from public, anon, authenticated;
+
+-- Checks the C/O choice against the configurable master data and returns what to store.
+-- The category's name_mode decides: listed = a name from its list, typed = a typed name, none = no name.
+-- p_require_active: a NEW or CHANGED choice must be switched on (an old, now switched-off choice may stay on an old booking).
+-- The booking guard repeats these checks and fixes the copies of the names (co_category_name, co_mode, co_name).
+create function public.resolve_co(p_category smallint, p_entry uuid, p_typed text, p_require_active boolean)
+returns table (out_entry uuid, out_name text)
+language plpgsql stable security definer set search_path = ''
+as $$
+declare cat record; e record;
+begin
+  select c.name_mode, c.is_active into cat from public.co_categories c where c.id = p_category;
+  if not found then
+    raise exception 'CO_TYPE_MISMATCH' using detail = 'Please choose a C/O category.';
+  end if;
+  if p_require_active and not cat.is_active then
+    raise exception 'CO_INACTIVE' using detail = 'This C/O category is switched off.';
+  end if;
+  if cat.name_mode = 'listed' then
+    select x.name, x.is_active, x.category_id into e from public.co_entries x where x.id = p_entry;
+    if not found or e.category_id <> p_category then
+      raise exception 'CO_TYPE_MISMATCH' using detail = 'Please choose a name from the list of this category.';
+    end if;
+    if p_require_active and not e.is_active then
+      raise exception 'CO_INACTIVE' using detail = 'This C/O name is switched off.';
+    end if;
+    out_entry := p_entry; out_name := e.name;
+  elsif cat.name_mode = 'typed' then
+    if p_typed is null then
+      raise exception 'INVALID_INPUT' using detail = 'Please type the name for this category.';
+    end if;
+    out_entry := null; out_name := left(p_typed, 120);
+  else
+    out_entry := null; out_name := null;
+  end if;
+  return next;
+end
+$$;
+revoke all on function public.resolve_co(smallint, uuid, text, boolean) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- create_booking
--- payload: resort_id, guest_id | (guest_name, guest_mobile[, guest_email]), pax, co_category,
---          agent_partner_id, co_name, stay_type_id, booking_date, check_in_at, check_out_at,
+-- payload: resort_id, guest_id | (guest_name, guest_mobile[, guest_email]), pax, co_category_id,
+--          co_entry_id (when the category is a list), co_name (when the category takes a typed name), stay_type_id, booking_date, check_in_at, check_out_at,
 --          pricing_method, tariff_paise, extra_charges_paise, extra_charges_note, discount_paise,
 --          manual_adjustment_paise, manual_adjustment_reason, remarks
 -- plan:    [{label, due_date, amount_paise}, ...]  - must add up to the Final Amount exactly (Q6b)
@@ -348,7 +383,7 @@ declare
   v_resort  public.resorts;
   v_guest   public.guests;
   v_guest_id uuid := public.pl_uuid(p_payload, 'guest_id');
-  v_cat     public.co_category;
+  v_cat     smallint := public.pl_bigint(p_payload, 'co_category_id');
   v_method  public.pricing_method;
   v_in      timestamptz := public.pl_timestamptz(p_payload, 'check_in_at');
   v_out     timestamptz := public.pl_timestamptz(p_payload, 'check_out_at');
@@ -360,7 +395,7 @@ declare
   v_adj     bigint := public.pl_bigint(p_payload, 'manual_adjustment_paise', 0);
   v_adj_why text   := public.pl_text(p_payload, 'manual_adjustment_reason');
   v_stay    smallint := public.pl_bigint(p_payload, 'stay_type_id');
-  v_co_name text;
+  v_co      record;
   c         record;
   v_code    record;
   v_id      uuid := gen_random_uuid();
@@ -393,18 +428,15 @@ begin
   end if;
 
   begin
-    v_cat := public.pl_text(p_payload, 'co_category')::public.co_category;
     v_method := public.pl_text(p_payload, 'pricing_method')::public.pricing_method;
   exception when invalid_text_representation then
-    raise exception 'INVALID_INPUT' using detail = 'Please choose the C/O category and the pricing method.';
+    raise exception 'INVALID_INPUT' using detail = 'Please choose the pricing method.';
   end;
   if v_date not between date '2000-01-01' and date '2100-12-31' then
     raise exception 'INVALID_INPUT' using detail = 'The booking date is not valid.';
   end if;
-  if not exists (select 1 from public.stay_types s where s.id = v_stay and s.is_active) then
-    raise exception 'INVALID_INPUT' using detail = 'Please choose a stay type.';
-  end if;
-  v_co_name := public.resolve_co(v_cat, public.pl_uuid(p_payload, 'agent_partner_id'), public.pl_text(p_payload, 'co_name'), true);
+  perform public.check_stay_type(v_stay);
+  select * into v_co from public.resolve_co(v_cat, public.pl_uuid(p_payload, 'co_entry_id'), public.pl_text(p_payload, 'co_name'), true);
 
   select * into c from public.calc_booking_amounts(v_method, v_pax, v_tariff, v_extra, v_disc, v_adj, v_adj_why, v_in, v_out);
 
@@ -419,12 +451,12 @@ begin
   begin
     insert into public.bookings
       (id, booking_code, resort_id, booking_year, booking_seq, guest_id, guest_name, guest_mobile, pax,
-       co_category, agent_partner_id, co_name, stay_type_id, booking_date, check_in_at, check_out_at, nights,
+       co_category_id, co_entry_id, co_name, stay_type_id, booking_date, check_in_at, check_out_at, nights,
        pricing_method, tariff_per_person_paise, base_amount_paise, extra_charges_paise, extra_charges_note,
        discount_paise, manual_adjustment_paise, manual_adjustment_reason, remarks, idempotency_key)
     values
       (v_id, v_code.booking_code, v_resort.id, v_code.booking_year, v_code.booking_seq, v_guest.id, v_guest.full_name, v_guest.mobile, v_pax::int,
-       v_cat, case when v_cat in ('agent', 'partner') then public.pl_uuid(p_payload, 'agent_partner_id') end, v_co_name, v_stay,
+       v_cat, v_co.out_entry, v_co.out_name, v_stay,
        v_date, v_in, v_out, c.nights,
        v_method, v_tariff, c.base_paise, v_extra, public.pl_text(p_payload, 'extra_charges_note'),
        v_disc, v_adj, v_adj_why, public.pl_text(p_payload, 'remarks'), p_idem);
@@ -464,7 +496,7 @@ as $$
 declare
   cur       public.bookings;
   v_guest   public.guests;
-  v_cat     public.co_category;
+  v_cat     smallint;
   v_method  public.pricing_method;
   v_in      timestamptz;
   v_out     timestamptz;
@@ -476,8 +508,10 @@ declare
   v_adj     bigint;
   v_adj_why text;
   v_stay    smallint;
-  v_partner uuid;
+  v_entry   uuid;
+  v_typed   text;
   v_co_name text;
+  v_co      record;
   c         record;
   v_inputs_changed boolean;
   v_due_after bigint;
@@ -510,22 +544,30 @@ begin
   v_adj_why := case when p_payload ? 'manual_adjustment_reason' then public.pl_text(p_payload, 'manual_adjustment_reason') else cur.manual_adjustment_reason end;
   v_stay   := coalesce(public.pl_bigint(p_payload, 'stay_type_id'), cur.stay_type_id);
   begin
-    v_cat    := coalesce(public.pl_text(p_payload, 'co_category')::public.co_category, cur.co_category);
     v_method := coalesce(public.pl_text(p_payload, 'pricing_method')::public.pricing_method, cur.pricing_method);
   exception when invalid_text_representation then
-    raise exception 'INVALID_INPUT' using detail = 'Please choose the C/O category and the pricing method.';
+    raise exception 'INVALID_INPUT' using detail = 'Please choose the pricing method.';
   end;
-  if v_stay is distinct from cur.stay_type_id and not exists (select 1 from public.stay_types s where s.id = v_stay and s.is_active) then
-    raise exception 'INVALID_INPUT' using detail = 'Please choose a stay type.';
+  v_cat := coalesce(public.pl_bigint(p_payload, 'co_category_id'), cur.co_category_id);
+  if v_stay is distinct from cur.stay_type_id then
+    perform public.check_stay_type(v_stay);    -- only a NEW or CHANGED choice must be switched on
   end if;
 
-  -- C/O: re-resolve only if it changed (an old, now switched-off agent may stay on old bookings)
-  v_partner := case when p_payload ? 'agent_partner_id' then public.pl_uuid(p_payload, 'agent_partner_id') else cur.agent_partner_id end;
-  if v_cat in ('agent', 'partner') then
-    v_co_name := public.resolve_co(v_cat, v_partner, null, v_cat is distinct from cur.co_category or v_partner is distinct from cur.agent_partner_id);
+  -- C/O: checked again only if the category or the chosen name changed (an old, now switched-off choice may stay on an
+  -- old booking, and a renamed category changes nothing: the booking keeps its own copy of the names).
+  v_entry := case when p_payload ? 'co_entry_id' then public.pl_uuid(p_payload, 'co_entry_id') else cur.co_entry_id end;
+  v_typed := case when p_payload ? 'co_name' then public.pl_text(p_payload, 'co_name') else cur.co_name end;
+  if v_cat is distinct from cur.co_category_id or v_entry is distinct from cur.co_entry_id then
+    select * into v_co from public.resolve_co(v_cat, v_entry, v_typed, true);
+    v_entry := v_co.out_entry;
+    v_co_name := v_co.out_name;
+  elsif cur.co_mode = 'typed' and v_typed is distinct from cur.co_name then
+    if v_typed is null then
+      raise exception 'INVALID_INPUT' using detail = 'Please type the name for this category.';
+    end if;
+    v_co_name := left(v_typed, 120);
   else
-    v_partner := null;
-    v_co_name := public.resolve_co(v_cat, null, case when p_payload ? 'co_name' then public.pl_text(p_payload, 'co_name') else cur.co_name end, true);
+    v_co_name := cur.co_name;
   end if;
 
   if public.pl_uuid(p_payload, 'guest_id') is not null and public.pl_uuid(p_payload, 'guest_id') <> cur.guest_id then
@@ -546,7 +588,7 @@ begin
     guest_id = coalesce(v_guest.id, guest_id),
     guest_name = coalesce(v_guest.full_name, guest_name),
     guest_mobile = coalesce(v_guest.mobile, guest_mobile),
-    pax = v_pax::int, co_category = v_cat, agent_partner_id = v_partner, co_name = v_co_name,
+    pax = v_pax::int, co_category_id = v_cat, co_entry_id = v_entry, co_name = v_co_name,
     stay_type_id = v_stay, booking_date = v_date, check_in_at = v_in, check_out_at = v_out, nights = c.nights,
     pricing_method = v_method, tariff_per_person_paise = v_tariff, base_amount_paise = c.base_paise,
     extra_charges_paise = v_extra,

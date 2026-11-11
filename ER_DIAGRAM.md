@@ -9,7 +9,9 @@ erDiagram
     RESORTS ||--o{ BOOKINGS : "has"
     RESORTS ||--o{ BOOKING_SEQUENCES : "one counter per year"
     GUESTS ||--o{ BOOKINGS : "makes"
-    AGENTS_PARTNERS ||--o{ BOOKINGS : "C/O agent or partner"
+    CO_CATEGORIES ||--o{ CO_ENTRIES : "names in a list category"
+    CO_CATEGORIES ||--o{ BOOKINGS : "C/O category (copy of the name kept)"
+    CO_ENTRIES ||--o{ BOOKINGS : "C/O name (must belong to the same category)"
     STAY_TYPES ||--o{ BOOKINGS : "stay type"
 
     BOOKINGS ||--o{ PAYMENT_PLAN_REVISIONS : "plan revisions"
@@ -64,15 +66,21 @@ erDiagram
         text mobile
         text mobile_normalized
     }
-    AGENTS_PARTNERS {
+    CO_CATEGORIES {
+        smallint id PK
+        text name UK "configurable"
+        text name_mode "listed / typed / none"
+        bool is_active
+    }
+    CO_ENTRIES {
         uuid id PK
-        partner_type type
-        text name
+        smallint category_id FK
+        text name "unique per category"
         bool is_active
     }
     STAY_TYPES {
         smallint id PK
-        text name UK "Resort Stay, Day Outing, Package"
+        text name UK "configurable; starts with 3 examples"
         bool is_active
     }
     BOOKINGS {
@@ -83,10 +91,13 @@ erDiagram
         int booking_seq
         uuid guest_id FK
         int pax
-        co_category co_category
-        uuid agent_partner_id FK
-        text co_name
+        smallint co_category_id FK
+        text co_category_name "copy when chosen"
+        text co_mode "copy: listed/typed/none"
+        uuid co_entry_id FK "with the category: composite FK"
+        text co_name "copy when chosen"
         smallint stay_type_id FK
+        text stay_type_name "copy when chosen"
         date booking_date
         timestamptz check_in_at
         timestamptz check_out_at
