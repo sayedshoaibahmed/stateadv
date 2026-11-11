@@ -364,6 +364,10 @@ Trigger `approval_guard`:
 ### 2.17 `system_status`
 `key text PK, value jsonb, updated_at`. Holds the last backup and integrity-check results.
 
+### 2.18 `reauth_grants` (password re-entry for protected Owner actions, O3; migration 19)
+`id uuid PK default gen_random_uuid(), user_id uuid not null FK → user_profiles, action text not null, target_id uuid not null, detail text, created_at timestamptz not null default now(), expires_at timestamptz not null default now() + 60 seconds, used_at timestamptz`.
+`action` is one of `add_owner`, `change_role`, `set_active`, `reset_password`, `change_email`. `detail` is the exact operation: `'true'`/`'false'` (set_active), `'owner'`/`'manager'` (change_role), the lower-cased email (change_email, add_owner), null (reset_password). A grant means: "this Owner just proved their own password for this one action on this one account, for exactly this operation"; it is usable once, within 60 seconds, and only by the same signed-in user. Row-level security is on with no policy and **no app role has any privilege** (not even `service_role`): rows are written and claimed only by the functions `issue_reauth` (returns nothing), `reauth_begin` and `record_reauth_failure` (all three service role only) and the internal `consume_reauth`. The five protected account functions call `consume_reauth` and raise `REAUTH_REQUIRED` without a match. Never deleted (like every table). Each password attempt, success and failure is audited in `audit_logs` as `reauth_attempt`, `reauth_verified`, `reauth_failed` (readable by Owners only, by a restrictive policy); five attempts in 15 minutes since the last success lock further attempts.
+
 ---
 
 ## 3. Views (read-only, `security_invoker = true`)

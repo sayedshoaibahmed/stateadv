@@ -8,8 +8,8 @@ Last updated: 2026-11-11
 ### Where each thing has been verified
 | Level | State |
 |---|---|
-| **Hosted dev project** (PostgreSQL 17.11) | Migrations **01–10 applied** and verified read-only. Migrations **11–18 are NOT applied** (dry run lists exactly those eight). No Owner account. Signup disabled. Tables that migration 17 changes are **empty** on hosted (0 bookings, 0 C/O names). |
-| **GitHub** | `origin/main` = `8be574e`; CI for it passed (lint/typecheck/test/build, secret scan, PostgreSQL 17 database tests; reported by the owner). The newer local changes (migration 17 constraint rename, generated types, hosted-rehearsal CI job, preflight script, docs) are **uncommitted and not pushed**, so the new `database-postgres-17-restricted` job has never run on GitHub. |
+| **Hosted dev project** (PostgreSQL 17.11) | Migrations **01–18 applied (2026-11-11) and verified** item by item against a local rebuild (HOSTED_VERIFICATION 0h): 85 functions, 38 callable by signed-in users, 0 by anon, 4 placeholder resorts, 4 C/O categories, reference data intact. No Owner account, no users, no data. Signup disabled. |
+| **GitHub** | `origin/main` = `cc94490`; all four CI jobs passed (lint/typecheck/test/build, secret scan, PostgreSQL 17 database tests, PostgreSQL 17 as a non-superuser; reported by the owner). Only documentation changes are uncommitted. |
 | **Local, real PostgreSQL 17.11** (throw-away server) | **355** database tests + **18** simultaneous-request tests pass, in each of two modes: superuser, and the hosted rehearsal (migrations run as a plain role named `postgres`). |
 | **Local, PGlite** | **508** tests pass (18 concurrency tests skipped there). |
 | **Mutation checks** | Exhaustive suite (53 weakened versions) is **deferred to M9** by owner decision (see below). Essential targeted M2 checks run 2026-11-11: 15 security/financial weakenings **all caught**; the runner now treats a crashed test process as INCONCLUSIVE (retried 3 times) and never as caught. |
@@ -19,6 +19,9 @@ Last updated: 2026-11-11
 | `npm audit --omit=dev` | 0 findings (3 dev-only advisories in the `shadcn` command-line tool, not shipped) |
 
 **Known issue (open):** on this Windows machine the many-connection test file sometimes loses its Node worker process (about 1 run in 10; no failing assertion ever; see MIGRATION_REVIEW 14.6).
+
+### Stage 2026-11-11 (O3 hardening, local only, uncommitted)
+Security Advisor finding F1 (the Owner's password re-entry existed only in the server action) is fixed in code and then hardened after an independent review: **migration 19** adds single-use, 60-second re-authentication grants bound to the exact operation (M1), attempts reserved atomically under a per-Owner lock BEFORE the password is tried with every database error failing closed (M2), no grant id returned anywhere (L2), and re-authentication audit rows readable by Owners only (L3). The hosted preflight was rewritten without hard-coded ranges (P1-P9, per-migration preconditions in `supabase/preflight.json`) and a read-only post-apply comparison with a local rebuild was added (`npm run catalog:local`, `npm run catalog:compare`). **Not applied to hosted, not committed.** Hosted stays at migrations 01-18 until you approve. The M3 dashboard-functions migration is now number 20. Details: `SECURITY.md` section 15, `supabase/MIGRATION_REVIEW.md` section 16, `supabase/HOSTED_VERIFICATION.md` 0a, 0i, 0j.
 
 ### Stage 2026-11-11 (later): checks completed without needing approval
 - **GitHub:** `5050a8e` pushed; all four CI jobs passed (reported by the owner), including the new restricted-role job.
@@ -41,10 +44,10 @@ M2: essential targeted security and financial-rule checks only. M3, M4, M6, M7, 
 ### Blocked on you
 | # | Action | Needed for |
 |---|---|---|
-| 1 | Approve applying migrations 11–18 (dry run done; migration 17 has DROP COLUMN/TYPE, see MIGRATION_REVIEW 14.2) | everything on the hosted project |
-| 2 | Approve pushing the local commits | CI incl. PostgreSQL 17 job |
-| 3 | Replace the dev Secret Key, then approve the first-Owner run | the real Owner account |
-| 4 | Two mailboxes; allow throw-away test users | RSV-06 (second half), 07, 08 |
+| 1 | Dashboard checks and the Advisors review (`M2_SIGNOFF_CHECKLIST.md` group A) | RSV-09, RSV-14 |
+| 2 | Replace the dev Secret Key (group B), then approve the first-Owner run with the Owner's name and email (group C) | the real Owner account |
+| 3 | Two mailboxes or a custom email sender; approve throw-away test users | RSV-06 (second half), 07, 08, the second-approver run |
+| 4 | Approve committing the documentation | records the hosted evidence on GitHub |
 
 ## Milestones
 | # | Milestone | Status | Approved by owner |

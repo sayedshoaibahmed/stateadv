@@ -2,6 +2,7 @@
  * ONE-TIME script: creates the very first Owner account.
  *
  *   npx tsx scripts/create-first-user.ts --dry-run     (checks everything, creates NOTHING)
+ *   npx tsx scripts/create-first-user.ts --dry-run --name="Test Owner" --email=test@example.com   (no prompts; dry run only)
  *   npx tsx scripts/create-first-user.ts               (creates the account)
  *
  * It reads NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY from .env.local (never from the command line),
@@ -24,6 +25,16 @@ try {
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SECRET_KEY;
 const dryRun = process.argv.includes("--dry-run");
+const argValue = (flag: string) =>
+  process.argv.find((a) => a.startsWith(`${flag}=`))?.slice(flag.length + 1);
+const argName = argValue("--name");
+const argEmail = argValue("--email");
+if ((argName !== undefined || argEmail !== undefined) && !dryRun) {
+  console.error(
+    "--name and --email are only accepted together with --dry-run. A real run asks for them interactively.",
+  );
+  process.exit(1);
+}
 
 if (!url || !key) {
   console.error(
@@ -92,8 +103,10 @@ async function main() {
       return;
     }
   }
-  const fullName = await ask("Owner's full name: ");
-  const email = await ask("Owner's email: ");
+  // Dry run only: the name and email may be given as --name=... and --email=... (never a password). A real run
+  // always asks interactively, and refuses these arguments.
+  const fullName = argName ?? (await ask("Owner's full name: "));
+  const email = argEmail ?? (await ask("Owner's email: "));
   let password = "";
   if (!dryRun) {
     password = await askHidden(

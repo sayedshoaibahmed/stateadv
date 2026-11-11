@@ -14,6 +14,12 @@ import { authErrorMessage } from "@/lib/auth/routes";
 import { friendlyError } from "@/lib/errors";
 import { verifyPassword } from "@/lib/accounts/password";
 import {
+  confirmPassword,
+  grantActionFor,
+  issueGrant,
+  type ReauthDeps,
+} from "@/lib/accounts/reauth";
+import {
   generateTempPassword,
   isProtectedAction,
   mayAttempt,
@@ -51,10 +57,61 @@ const fail = (message: string, errors?: FieldErrors): AccountState => ({
   errors,
 });
 
+/** The real calls behind the re-authentication steps. Everything that touches grants uses the SECRET key (server only). */
+function reauthDeps(): ReauthDeps {
+  const admin = createAdminClient();
+  // Every call checks its error and throws: a failing database is never read as "allowed" (fail closed).
+  return {
+    async begin(actorId, action, targetId) {
+      const { error } = await admin.rpc("reauth_begin", {
+        p_actor: actorId,
+        p_action: action,
+        p_target: targetId,
+      });
+      if (error) throw error; // REAUTH_LOCKED is recognised by confirmPassword; anything else stops the attempt
+    },
+    verifyPassword,
+    async recordFailure(actorId, action, targetId) {
+      const { error } = await admin.rpc("record_reauth_failure", {
+        p_actor: actorId,
+        p_action: action,
+        p_target: targetId,
+      });
+      if (error) throw error;
+    },
+    async issue(actorId, action, targetId, detail) {
+      const { error } = await admin.rpc("issue_reauth", {
+        p_actor: actorId,
+        p_action: action,
+        p_target: targetId,
+        p_detail: detail ?? undefined,
+      }); // the database returns nothing: there is no grant id that could ever reach the browser or a log
+      if (error) throw error;
+    },
+  };
+}
+
+/** What a passed gate gives back: the reason to record and a way to get the database's re-authentication grant. */
+interface Gate {
+  reason?: string;
+  /**
+   * Issue the single-use grant for this account and THIS exact operation (`value`: the new active flag, the new role
+   * or the new email; see grantDetail), right before the protected database call (and again before an "undo" call:
+   * the password was already verified in this request). Returns null, or a plain-English error.
+   * It is a no-op for actions that are not protected.
+   */
+  grant(
+    targetId: string,
+    value?: string | boolean | null,
+  ): Promise<string | null>;
+}
+
 /**
  * The common gate for protected actions (O1-O3, O6): who may try it, a written reason of 10+
  * characters and the acting person's own password. Returns the reason to record, or an error.
- * The DATABASE re-checks who may do what; this adds what the database cannot see (the password).
+ * The DATABASE re-checks who may do what AND refuses a protected action without a re-authentication grant
+ * (migration 19); the grant is issued by `grant()` only after Supabase Auth accepted the password here.
+ * `targetId` is the account acted on (for a wrong-password audit entry); for "add an Owner" it is not known yet.
  */
 async function gate(
   actor: SessionUser,
@@ -62,29 +119,69 @@ async function gate(
   action: AccountAction,
   targetRole: Role,
   newRole?: Role,
-): Promise<{ reason?: string } | { error: AccountState }> {
+  targetId?: string,
+): Promise<Gate | { error: AccountState }> {
   const check = { action, targetRole, newRole };
   if (!mayAttempt(actor.role, check)) {
     return { error: fail("Only an Owner can do this.") };
   }
-  if (isProtectedAction(check)) {
+  const grantAction = grantActionFor(check);
+  if (isProtectedAction(check) && grantAction) {
     const p = protectedFields.safeParse({
       reason: text(fd, "reason"),
       actor_password: text(fd, "actor_password"),
     });
     if (!p.success)
       return { error: fail("Please check the form.", fieldErrors(p.error)) };
-    if (!(await verifyPassword(actor.email, p.data.actor_password))) {
+    const deps = reauthDeps();
+    let confirmed: Awaited<ReturnType<typeof confirmPassword>>;
+    try {
+      confirmed = await confirmPassword(
+        deps,
+        {
+          actorId: actor.id,
+          actorEmail: actor.email,
+          password: p.data.actor_password,
+        },
+        grantAction,
+        targetId ?? actor.id,
+      );
+    } catch {
+      return {
+        error: fail(
+          "We could not check your password just now. Nothing was changed. Please try again.",
+        ),
+      };
+    }
+    if (confirmed === "locked") {
+      return { error: fail(friendlyError({ message: "REAUTH_LOCKED" })) };
+    }
+    if (confirmed === "wrong_password") {
       return {
         error: fail("Please check the form.", {
           actor_password: "That password is not correct.",
         }),
       };
     }
-    return { reason: p.data.reason };
+    return {
+      reason: p.data.reason,
+      async grant(id, value) {
+        try {
+          await issueGrant(deps, actor.id, grantAction, id, value);
+          return null;
+        } catch (e) {
+          return friendlyError(e);
+        }
+      },
+    };
   }
   const o = optionalReason.safeParse({ reason: text(fd, "reason") });
-  return { reason: o.success ? o.data.reason : undefined };
+  return {
+    reason: o.success ? o.data.reason : undefined,
+    async grant() {
+      return null; // not a protected action: the database asks for no grant
+    },
+  };
 }
 
 /** Role of the person being acted on, read with the actor's own login (RLS). */
@@ -139,6 +236,12 @@ export async function addUser(
       : fail(authErrorMessage(created.error?.code));
   }
   // 2. the profile + every rule (database). If it refuses, the new login is removed again.
+  // Adding an Owner needs the database's re-authentication grant for this very login (issued only after the password).
+  const noGrant = await g.grant(created.data.user.id, email);
+  if (noGrant) {
+    await admin.auth.admin.deleteUser(created.data.user.id);
+    return fail(noGrant);
+  }
   const supabase = await createClient();
   const { error } = await supabase.rpc("profile_create", {
     p_id: created.data.user.id,
@@ -199,10 +302,19 @@ export async function changeRole(
   if (target.role === parsed.data.role)
     return { ok: true, message: "Nothing to change." };
 
-  const g = await gate(actor, fd, "change_role", target.role, parsed.data.role);
+  const g = await gate(
+    actor,
+    fd,
+    "change_role",
+    target.role,
+    parsed.data.role,
+    target.id,
+  );
   if ("error" in g) return g.error;
   // Role changes always carry a written reason (also for Manager -> Manager style label changes).
   const reason = g.reason ?? text(fd, "reason").trim();
+  const noGrant = await g.grant(id.data, parsed.data.role);
+  if (noGrant) return fail(noGrant);
   const supabase = await createClient();
   const { error } = await supabase.rpc("profile_update", {
     p_id: id.data,
@@ -234,8 +346,12 @@ export async function setUserActive(
     fd,
     sw.data.active ? "switch_on" : "switch_off",
     target.role,
+    undefined,
+    target.id,
   );
   if ("error" in g) return g.error;
+  const noGrant = await g.grant(id.data, sw.data.active);
+  if (noGrant) return fail(noGrant);
 
   const supabase = await createClient();
   // 1. database rules + record (blocks the account's data access at once)
@@ -251,6 +367,7 @@ export async function setUserActive(
     ban_duration: sw.data.active ? "none" : "876000h",
   });
   if (res.error) {
+    await g.grant(id.data, !sw.data.active); // the undo is a protected call too; the password was already verified in this request
     const { error: undo } = await supabase.rpc("profile_set_active", {
       p_id: id.data,
       p_active: !sw.data.active,
@@ -283,8 +400,17 @@ export async function resetUserPassword(
   if (target.id === actor.id)
     return fail("To change your own password, use My Account.");
 
-  const g = await gate(actor, fd, "reset_password", target.role);
+  const g = await gate(
+    actor,
+    fd,
+    "reset_password",
+    target.role,
+    undefined,
+    target.id,
+  );
   if ("error" in g) return g.error;
+  const noGrant = await g.grant(id.data);
+  if (noGrant) return fail(noGrant);
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("profile_reset_password", {
@@ -334,8 +460,17 @@ export async function changeUserEmail(
     return fail("Please check the form.", {
       reason: reasonCheck.error.issues[0].message,
     });
-  const g = await gate(actor, fd, "change_email", target.role);
+  const g = await gate(
+    actor,
+    fd,
+    "change_email",
+    target.role,
+    undefined,
+    target.id,
+  );
   if ("error" in g) return g.error;
+  const noGrant = await g.grant(id.data, parsed.data.new_email);
+  if (noGrant) return fail(noGrant);
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("profile_change_email", {
@@ -349,6 +484,7 @@ export async function changeUserEmail(
     email_confirm: true,
   });
   if (res.error) {
+    await g.grant(id.data, target.email); // the undo is a protected call too; the password was already verified in this request
     const { error: undo } = await supabase.rpc("profile_change_email", {
       p_id: id.data,
       p_new_email: target.email,

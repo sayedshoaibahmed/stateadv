@@ -6,7 +6,7 @@
 import { randomBytes } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { expectDbError } from "./harness";
-import { dateOffset, setupWorld, uid, type World } from "./fixtures";
+import { dateOffset, reauth, setupWorld, uid, type World } from "./fixtures";
 
 let w: World;
 beforeAll(async () => {
@@ -449,6 +449,7 @@ describe("DEC-3 reason lengths: ordinary 5, protected Owner actions and correcti
       ),
       "REASON_REQUIRED",
     );
+    await reauth(w.db, w.owner, "add_owner", o2);
     await call(
       `select public.profile_create($1, 'Test Dec3e', 'dec3e@test.example', 'owner', null, 'abcdefghij')`,
       [o2],
@@ -462,6 +463,7 @@ describe("DEC-3 reason lengths: ordinary 5, protected Owner actions and correcti
       ),
       "REASON_REQUIRED",
     );
+    await reauth(w.db, w.owner, "set_active", o2);
     await call(
       `select public.profile_set_active($1, false, 'abcdefghij')`,
       [o2],

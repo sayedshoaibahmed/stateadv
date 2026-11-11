@@ -9,7 +9,7 @@
 import { randomBytes } from "node:crypto";
 import pg from "pg";
 import { beforeAll, describe, expect, it } from "vitest";
-import { dateOffset, setupWorld, uid, type World } from "./fixtures";
+import { dateOffset, reauth, setupWorld, uid, type World } from "./fixtures";
 
 const REAL = Boolean(process.env.STATEADV_PG_URL);
 let w: World;
@@ -63,6 +63,34 @@ async function parallel<T>(
     );
   } finally {
     // close one at a time: closing dozens of sockets in the same instant can crash Node on Windows
+    for (const c of clients) await c.end().catch(() => undefined);
+  }
+}
+
+/** Connections that act as the SERVICE ROLE (what the server does with the secret key), all started at the same moment. */
+async function parallelService<T>(
+  n: number,
+  job: (c: pg.Client, i: number) => Promise<T>,
+) {
+  const clients = await Promise.all(
+    Array.from({ length: n }, async () => {
+      const c = new pg.Client({ connectionString: w.db.url });
+      c.on("error", () => undefined);
+      await c.connect();
+      await c.query("set role service_role");
+      return c;
+    }),
+  );
+  try {
+    return await Promise.all(
+      clients.map((c, i) =>
+        job(c, i).then(
+          (value) => ({ ok: true as const, value }),
+          (e: Error) => ({ ok: false as const, error: e.message }),
+        ),
+      ),
+    );
+  } finally {
     for (const c of clients) await c.end().catch(() => undefined);
   }
 }
@@ -270,6 +298,7 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
       `insert into auth.users (id, email) values ($1, 'con04@test.example')`,
       [o2],
     );
+    await reauth(w.db, w.owner, "add_owner", o2);
     await w.db.as({ role: "authenticated", uid: w.owner }, () =>
       w.db.q(
         `select public.profile_create($1, 'Test Con04', 'con04@test.example', 'owner', null, 'Second owner for the test')`,
@@ -277,6 +306,9 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
       ),
     );
     for (let round = 0; round < 5; round++) {
+      // each Owner has confirmed their own password for switching the OTHER Owner off
+      await reauth(w.db, w.owner, "set_active", o2);
+      await reauth(w.db, o2, "set_active", w.owner);
       const res = await parallel([w.owner, o2], (c, i) =>
         c.query(
           `select public.profile_set_active($1, false, 'Switching the other Owner off')`,
@@ -759,5 +791,139 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
       ),
     );
     expect(late[0].ok).toBe(false);
+  });
+
+  it("CON-19 (O3): one grant claimed by several simultaneous protected calls is used exactly once, and only by the call for the exact operation it was issued for", async () => {
+    const o2 = uid();
+    await w.db.q(
+      `insert into auth.users (id, email) values ($1, 'con19@test.example')`,
+      [o2],
+    );
+    await reauth(w.db, w.owner, "add_owner", o2);
+    await w.db.as({ role: "authenticated", uid: w.owner }, () =>
+      w.db.q(
+        `select public.profile_create($1, 'Test Con19', 'con19@test.example', 'owner', null, 'Second owner for the test')`,
+        [o2],
+      ),
+    );
+    for (let round = 0; round < 3; round++) {
+      const good = `con19-${round}@test.example`;
+      const g = await reauth(w.db, w.owner, "change_email", o2, good);
+      // six calls at the same moment: three for the confirmed email (only one can win), three for other emails (never)
+      const res = await parallel(Array(6).fill(w.owner), (c, i) =>
+        c.query(
+          `select public.profile_change_email($1, $2, 'Six calls, one grant')`,
+          [o2, i < 3 ? good : `other-${round}-${i}@test.example`],
+        ),
+      );
+      expect(res.filter((r) => r.ok)).toHaveLength(1);
+      expect(res.slice(0, 3).filter((r) => r.ok)).toHaveLength(1);
+      for (const r of res.filter((r) => !r.ok))
+        expect((r as { error: string }).error).toContain("REAUTH_REQUIRED");
+      const used = await w.db.q<{ n: string }>(
+        `select count(*)::text n from public.reauth_grants where id = $1 and used_at is not null`,
+        [g],
+      );
+      expect(used[0].n).toBe("1");
+      const email = await w.db.q<{ email: string }>(
+        `select email from public.user_profiles where id = $1`,
+        [o2],
+      );
+      expect(email[0].email).toBe(good);
+    }
+    // simultaneous switch-offs of each other, each Owner holding a grant: still never zero active Owners (as CON-04)
+    await reauth(w.db, w.owner, "set_active", o2);
+    await reauth(w.db, o2, "set_active", w.owner);
+    await parallel([w.owner, o2], (c, i) =>
+      c.query(
+        `select public.profile_set_active($1, false, 'Switching the other Owner off')`,
+        [i === 0 ? o2 : w.owner],
+      ),
+    );
+    const active = await w.db.q<{ n: string }>(
+      `select count(*)::text n from public.user_profiles where role = 'owner' and is_active`,
+    );
+    expect(Number(active[0].n)).toBeGreaterThanOrEqual(1);
+    // put both back (recovery path, service role): later tests must start with the first Owner active
+    await w.db.as({ role: "service_role" }, async () => {
+      await w.db.q(
+        `select public.recover_owner_account($1, 'Reset after the test')`,
+        [w.owner],
+      );
+      await w.db.q(
+        `select public.recover_owner_account($1, 'Reset after the test')`,
+        [o2],
+      );
+    });
+  });
+
+  it("CON-20 (O3): twenty simultaneous password attempts reserve at most five; a success resets the count; other Owners are not blocked", async () => {
+    // start with the first Owner active (an earlier test may have switched either Owner off)
+    await w.db.as({ role: "service_role" }, () =>
+      w.db.q(
+        `select public.recover_owner_account($1, 'Reset before the test')`,
+        [w.owner],
+      ),
+    );
+    const mk = async (email: string) => {
+      const id = uid();
+      await w.db.q(`insert into auth.users (id, email) values ($1, $2)`, [
+        id,
+        email,
+      ]);
+      await reauth(w.db, w.owner, "add_owner", id);
+      await w.db.as({ role: "authenticated", uid: w.owner }, () =>
+        w.db.q(
+          `select public.profile_create($1, 'Test Con20', $2, 'owner', null, 'Owner for the attempt test')`,
+          [id, email],
+        ),
+      );
+      return id;
+    };
+    const a = await mk("con20a@test.example");
+    const b = await mk("con20b@test.example");
+    const attempts = async (id: string) =>
+      Number(
+        (
+          await w.db.q<{ n: string }>(
+            `select count(*)::text n from public.audit_logs where actor_id = $1 and action = 'reauth_attempt'`,
+            [id],
+          )
+        )[0].n,
+      );
+    for (let round = 0; round < 2; round++) {
+      const res = await parallelService(20, (c) =>
+        c.query(`select public.reauth_begin($1, 'set_active', $2)`, [
+          a,
+          w.owner,
+        ]),
+      );
+      expect(res.filter((r) => r.ok)).toHaveLength(5);
+      for (const r of res.filter((r) => !r.ok))
+        expect((r as { error: string }).error).toContain("REAUTH_LOCKED");
+      expect(await attempts(a)).toBe(5 * (round + 1));
+      // locked now, also for a sequential try
+      await expect(
+        w.db.as({ role: "service_role" }, () =>
+          w.db.q(`select public.reauth_begin($1, 'set_active', $2)`, [
+            a,
+            w.owner,
+          ]),
+        ),
+      ).rejects.toThrow(/REAUTH_LOCKED/);
+      // another Owner is not affected by a's lock
+      await w.db.as({ role: "service_role" }, () =>
+        w.db.q(`select public.reauth_begin($1, 'set_active', $2)`, [
+          b,
+          w.owner,
+        ]),
+      );
+      // a correct password for a (issue) resets a's count
+      await reauth(w.db, a, "set_active", w.owner);
+    }
+    // after the last reset the next attempt is allowed again
+    await w.db.as({ role: "service_role" }, () =>
+      w.db.q(`select public.reauth_begin($1, 'set_active', $2)`, [a, w.owner]),
+    );
   });
 });

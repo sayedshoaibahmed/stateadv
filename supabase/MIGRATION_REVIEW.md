@@ -1,6 +1,6 @@
 # M2 — Database migration review guide
 
-**Status: written and tested locally. NOT applied to Supabase.** Nothing here touches your Supabase project until you review and explicitly approve applying it.
+**Status (updated 2026-11-11): migrations 01–18 are APPLIED to the dev Supabase project and verified** (evidence: `HOSTED_VERIFICATION.md` section 0h). The text below was written before 11–18 were applied and is kept as the review record; where it says "not applied", read "applied on 2026-11-11 after the owner's approval".
 
 **Updated 2026-11-11:** your decisions O7 (verified own-email change), Q9a (correction files) and D5 (reversal protection) are now in the migration files. Section 10 shows exactly what changed, file by file. Sections 1-9 describe the current files.
 
@@ -453,3 +453,24 @@ Everything below was checked **read-only** against the hosted project (PostgreSQ
 
 ### 15.6 Rehearsal as the hosted role (new evidence)
 The same 355 database tests and 18 simultaneous-request tests were run on real PostgreSQL 17.11 with **migrations 01-18 executed as a plain, non-superuser role named `postgres`** (CREATEROLE, BYPASSRLS, owns what it creates), exactly the hosted role's attributes: **all pass.** A first attempt with a differently named role failed in migration 08 ("permission denied to change default privileges") - a flaw of that attempt, not of the migrations: migration 08 says `alter default privileges for role postgres`, so the rehearsal role must really be named `postgres`. This rehearsal does **not** reproduce Supabase's `supautils` extension, PostgREST, the real Auth and Storage services, or object ownership by `supabase_admin`.
+
+## 16. Migration 19: re-authentication grants (O3), written and tested locally, NOT applied to hosted
+
+File: `supabase/migrations/20261111000019_reauth_grants.sql`. Approved by the owner 2026-11-11 as hardening for Security Advisor finding F1 (`SECURITY.md` section 15), then revised after the independent review (M1 grants bound to the exact operation, M2 attempts reserved atomically before the password, L2 no grant id returned, L3 audit rows readable by Owners only). Migrations 01-18 are untouched. The planned M3 dashboard-functions migration is now number **20**.
+
+| Item | Detail |
+|---|---|
+| Purpose | The database refuses a protected Owner action unless a single-use, 60-second grant exists for exactly this user, action, account and operation |
+| New objects | table `reauth_grants` (RLS on, no policy, no privilege for any role, no-delete and no-truncate triggers like every table); functions `reauth_begin`, `issue_reauth`, `record_reauth_failure` (service role only) and `consume_reauth` (no one: internal); restrictive policy `"reauth audit rows are for owners"` on `audit_logs` |
+| Replaced objects | `profile_create`, `profile_update`, `profile_set_active`, `profile_reset_password`, `profile_change_email` via `create or replace` with **unchanged signatures** (grants kept). A line comparison with migration 12 shows only the added Owner-actor check, the `consume_reauth` call and the header changed |
+| Destructive operations | **none** (no DROP, no DELETE, no ALTER of existing tables). `check:migrations` passes without any approval marker |
+| Data | nothing to convert; the new table starts empty; no existing row is touched; no audit row is changed (the new policy only restricts who may READ rows whose action starts with `reauth_`) |
+| Dependencies | 02 (`user_profiles`), 05 (`audit_logs`), 06 (`prevent_delete`, `prevent_truncate`, `guard_user_profiles`), 08 (`audit_logs` policy), 12 (`require_reason`, `optional_reason`, `audit_account_action`, the five functions) |
+| Expected hosted state after applying (from a local rebuild) | history 19; tables **21** (RLS on all); functions **89** (85 + 4); callable by signed-in users **38** (unchanged), by anon 0; public triggers 104 (+1 on auth.users = 105); policies 19 public + 6 storage = **26** (+1); columns 314; constraints 191; indexes 84; relations 30; rows unchanged by the migration |
+| Exact differences from the state after 18 | +8 columns, +5 constraints, +2 indexes, +2 triggers, +1 table, +1 policy, +4 functions, 5 function bodies changed (the five above), 0 table or column privileges changed |
+| Risks | (1) the app code and the migration must ship together: with only the migration, protected Owner actions fail closed with `REAUTH_REQUIRED` (none is reachable today: one Owner); (2) the grant-issuing path needs the secret key (already required for user creation); (3) more code in a security path, mitigated by the tests below; (4) a stolen session can make an Owner's five attempts fail (locks protected actions for up to 15 minutes; sign-in is unaffected) |
+| Existing sessions | unaffected: nobody is signed out, no token changes |
+| Recovery | additive: with the owner's approval restore the five bodies from migration 12 with `create or replace`, drop the policy, the four functions and the table (it holds only grants). No data is involved. The refreshed safety export is taken first |
+| Preflight and post-apply verification | `npm run preflight:hosted -- --pending=20261111000019` (section 0a of HOSTED_VERIFICATION; P9 checks the five functions on hosted still have exactly migration 12's source); afterwards `npm run catalog:local` and `npm run catalog:compare` (section 0j) must report every category identical |
+
+Tests (all local): REA-01..16 (tests/db/reauth-grants.test.ts, 24 tests, run on PGlite and on real PostgreSQL 17; REA-16 is the 15-minute window with controlled timestamps), CON-19 and CON-20 (real PostgreSQL 17: one grant claimed by six simultaneous calls is used once and only by the call for the confirmed operation; twenty simultaneous attempts reserve at most five), REAUTH-U1..U13 (tests/unit/reauth.test.ts), PRE-U1..U8 and PRE-DB-1 (preflight logic and "migration text equals stored source"), and 24 targeted mutation checks "O3: ..." (23 on PGlite plus the advisory-lock one on real PostgreSQL), all caught.

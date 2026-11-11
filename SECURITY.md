@@ -213,7 +213,7 @@ Never in browser code (the bundle scan checks), never for ordinary reads or writ
 - Money-changing functions lock the booking row first; the guard triggers re-check every rule underneath (defence in depth).
 
 ### 12.3 Things the database cannot do (the server action does) and how they are covered
-- **Re-entering the acting Owner's password (O3)**: server action `gate()`, using a separate non-persisting Supabase client. The rule "which actions are protected" is unit-tested (ACU-01..04); the call to the real Supabase Auth is **not yet tested**.
+- **Re-entering the acting Owner's password (O3)**: the server action `gate()` verifies the password with a separate non-persisting Supabase client (the call to the real Supabase Auth is **not yet tested**). Since migration 19 the DATABASE also refuses the protected action without a single-use grant that only the server can issue after that check (section 15). The rule "which actions are protected" is unit-tested (ACU-01..04) and tested to agree with the SQL (REA-12, REAUTH-U7).
 - **Real file type**: the server downloads the uploaded file and checks its first bytes (STO-U1..U4); the database function also compares size and type with what Storage itself recorded (`parse_files`). Whether Supabase Storage names these metadata fields `size` and `mimetype` is **unverified** (the check fails closed, so a wrong guess blocks uploads instead of letting bad files in) — RSV-07.
 - **Forced password change**: `complete_password_change` cannot prove a password really changed. It is a reminder for the account holder, not a barrier against themselves.
 
@@ -238,3 +238,32 @@ Never in browser code (the bundle scan checks), never for ordinary reads or writ
 - **Migration 17** drops two enum types and two columns after converting data; hosted preconditions are checked read-only (MIGRATION_REVIEW 15) and re-checked by the preflight before any apply.
 - **Open items that need the dashboard (not the API):** Secure email change must be ON; session lifetime / refresh-token rotation must be as in section 2. Until you confirm them, FR-AUTH-2 and FR-AUTH-16 are **not verified**.
 - **Still open from before:** the dev Secret Key shared in a chat must be replaced before the first Owner and before production (not done; needs your action); the occasional local-only test-worker crash (MIGRATION_REVIEW 14.6).
+
+## 15. Password re-entry enforced by the database (O3; migration 19, 2026-11-11, written and tested locally, NOT yet applied to hosted)
+
+**Problem (Security Advisor audit, finding F1):** the "re-enter your own password" step for protected Owner actions existed only in the Next.js server action. Anyone holding a signed-in Owner's session token could call `profile_set_active`, `profile_reset_password`, `profile_change_email`, `profile_update` (role) or `profile_create` (Owner) directly and skip it.
+
+**Design (revised after the independent review, findings M1, M2, L2, L3).** The database never sees a password. The server (secret key only) does three things in this order:
+1. `reauth_begin(actor, action, target)` **reserves an attempt before the password is tried**. At most 5 per Owner in 15 minutes since the last success; an advisory lock per actor serializes the count, so 20 simultaneous requests still reserve at most 5 (test CON-20). Locked: `REAUTH_LOCKED`, and the password is never tried.
+2. Supabase Auth verifies the password. A wrong one is audited with `record_reauth_failure` (the attempt stays counted).
+3. `issue_reauth(actor, action, target, detail)` records a grant bound to the acting user, the action, the target account **and the exact operation** (`detail`: the new active flag, the new role, or the lower-cased email; null for a password reset), valid 60 seconds, usable once. It returns **nothing** (no grant id exists to leak). A success resets the attempt count.
+
+The five protected functions claim the grant in the same transaction through the internal `consume_reauth(user, action, target, detail)` and raise `REAUTH_REQUIRED` without a match.
+
+| Question | Answer |
+|---|---|
+| Can a stolen session token alone do a protected action? | No: it cannot mint a grant (`issue_reauth` is service role only) |
+| Can the secret key alone act as an Owner? | No: the grant is bound to `auth.uid()`, which only a real session has |
+| Can a concurrent direct call steal a grant the Owner just confirmed? (M1) | No: the grant is bound to the exact operation. A call with other arguments (another email, role or switch) cannot use it and does not consume it (REA-07, CON-19) |
+| Replay | Single use, atomic claim (`FOR UPDATE SKIP LOCKED`): six simultaneous calls on one grant give exactly one success |
+| Expiry | 60 seconds from issue |
+| Wrong guesses and parallel bursts (M2) | Attempts are reserved before the password is tried, under a per-Owner lock: no more than 5 per 15 minutes however many requests arrive together. Every database call in the server flow throws on error, so a failing database can never read as "allowed" or "not locked" (REAUTH-U4, U5) |
+| Audit | `reauth_attempt`, `reauth_verified` and `reauth_failed` rows (who, which action, which account in `changed_fields`; no reason, no data, no password, no grant id), then the normal account-change row with the reason |
+| Who can read those audit rows (L3) | Active **Owners only**, through a restrictive row-level policy on `audit_logs`. The rows stay in the table for the owner role, the service role and Owners; nothing is removed or weakened (REA-14) |
+| Who can call what | `reauth_begin`, `issue_reauth`, `record_reauth_failure`: service role only. `consume_reauth`: nobody (called only by the five functions). The grants table: no privilege for any app role, not even the service role |
+| Order of refusals | A caller who is not an Owner still gets `OWNER_ACTION_REQUIRES_OWNER` first; `REAUTH_REQUIRED` appears only for an Owner who has not confirmed the password |
+| The undo after a failed second step | is also a protected call; it gets a second grant (for the reverse operation) because the password was already verified in that request |
+
+**What this does NOT change:** name and phone edits, Manager accounts and every other function; the `guard_user_profiles` trigger (another Owner required, reasons, no self-disable, last Owner protected); sessions (nobody is signed out).
+
+**Remaining limits:** a keylogger that captures the password defeats any re-entry scheme; a stolen session token can still call the NON-protected functions; a leaked secret key is still a full takeover through the Auth admin API; a stolen session can still make an Owner's five attempts fail (locking that Owner out of protected actions for up to 15 minutes; sign-in is unaffected, another Owner and the recovery script remain); a server bug that issued a grant without calling `reauth_begin` first would not be caught by the database; the real Supabase Auth password check is still untested against the hosted project (needs a second Owner). Adjacent and outside migration 19: whether Supabase Auth lets a token change its OWN password or email without the current password (dashboard setting "Secure password change"; see M2_SIGNOFF_CHECKLIST group A).

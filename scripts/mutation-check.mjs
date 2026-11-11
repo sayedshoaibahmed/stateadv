@@ -353,6 +353,154 @@ const MUTATIONS = [
     from: "grant execute on function public.upsert_co_category(smallint, text, text, boolean, int) to authenticated;",
     to: "grant execute on function public.upsert_co_category(smallint, text, text, boolean, int) to authenticated, anon;",
   },
+  // ---- re-authentication grants, owner decision O3 (migration 19) -------------
+  {
+    name: "O3: switching an Owner off no longer needs a re-authentication grant",
+    file: "19",
+    from: "    perform public.consume_reauth(auth.uid(), 'set_active', p_id, p_active::text);   -- O3: for exactly this switch (on or off)",
+    to: "    null;",
+  },
+  {
+    name: "O3: adding an Owner no longer needs a re-authentication grant",
+    file: "19",
+    from: "    perform public.consume_reauth(auth.uid(), 'add_owner', p_id, v_email);   -- O3: password re-entered for this very account and email",
+    to: "    null;",
+  },
+  {
+    name: "O3: changing an Owner's email no longer needs a re-authentication grant",
+    file: "19",
+    from: "    perform public.consume_reauth(auth.uid(), 'change_email', p_id, v_email);   -- O3: for exactly this new email",
+    to: "    null;",
+  },
+  {
+    name: "O3: a grant can be used by a different signed-in user than the one it was issued to",
+    file: "19",
+    from: "where x.user_id = p_user and x.action = p_action and x.target_id = p_target",
+    to: "where x.action = p_action and x.target_id = p_target",
+  },
+  {
+    name: "O3: a grant for one account works on any other account",
+    file: "19",
+    from: "x.action = p_action and x.target_id = p_target",
+    to: "x.action = p_action",
+  },
+  {
+    name: "O3: M1: a grant is no longer bound to the exact operation (new flag, role or email)",
+    file: "19",
+    from: "and x.detail is not distinct from p_detail",
+    to: "and true",
+  },
+  {
+    name: "O3: an expired grant is still accepted",
+    file: "19",
+    from: "and x.used_at is null and x.expires_at > now()",
+    to: "and x.used_at is null",
+  },
+  {
+    name: "O3: a used grant can be used again (replay)",
+    file: "19",
+    from: "       set used_at = now()",
+    to: "       set used_at = used_at",
+  },
+  {
+    name: "O3: signed-in users can issue their own grants",
+    file: "19",
+    from: "grant execute on function public.issue_reauth(uuid, text, uuid, text) to service_role;",
+    to: "grant execute on function public.issue_reauth(uuid, text, uuid, text) to service_role, authenticated;",
+  },
+  {
+    name: "O3: M2: signed-in users can reserve attempts",
+    file: "19",
+    from: "grant execute on function public.reauth_begin(uuid, text, uuid) to service_role;",
+    to: "grant execute on function public.reauth_begin(uuid, text, uuid) to service_role, authenticated;",
+  },
+  {
+    name: "O3: M2: the five-attempt limit is gone",
+    file: "19",
+    from: "  if v_n >= 5 then",
+    to: "  if false then",
+  },
+  {
+    name: "O3: M2: far more than five attempts are allowed",
+    file: "19",
+    from: "  if v_n >= 5 then",
+    to: "  if v_n >= 500 then",
+  },
+  {
+    name: "O3: M2: a success no longer resets the attempt count",
+    file: "19",
+    from: "v.action = 'reauth_verified';",
+    to: "v.action = 'reauth_never';",
+  },
+  {
+    name: "O3: a Manager can reserve attempts and be given a grant",
+    file: "19",
+    from: "if not found or not v_actor.is_active or v_actor.role <> 'owner' then",
+    to: "if not found or not v_actor.is_active then",
+    all: true,
+  },
+  {
+    name: "O3: the grants table is readable and writable by app roles",
+    file: "19",
+    from: "revoke all on public.reauth_grants from public, anon, authenticated, service_role;",
+    to: "grant select, insert, update on public.reauth_grants to authenticated, service_role;",
+  },
+  {
+    name: "O3: an issue request that does not say what it is for is accepted",
+    file: "19",
+    from: "  if not coalesce(",
+    to: "  if false and coalesce(",
+  },
+  {
+    name: "O3: L3: Managers can read the re-authentication audit rows (policy opens to every active user)",
+    file: "19",
+    from: "and p.role = 'owner' and p.is_active)\n  );",
+    to: "and p.is_active)\n  );",
+  },
+  {
+    name: "O3: L3: the re-authentication audit rows are readable by everyone (policy always true)",
+    file: "19",
+    from: "    left(action, 7) <> 'reauth_'\n    or exists (select 1 from public.user_profiles p where p.id = (select auth.uid()) and p.role = 'owner' and p.is_active)",
+    to: "    true",
+  },
+  {
+    name: "O3: M2: attempts older than 15 minutes still count (window far too long)",
+    file: "19",
+    from: "and a.occurred_at > now() - interval '15 minutes'",
+    to: "and a.occurred_at > now() - interval '15 days'",
+  },
+  {
+    name: "O3: M2: the window is far too short (one minute)",
+    file: "19",
+    from: "and a.occurred_at > now() - interval '15 minutes'",
+    to: "and a.occurred_at > now() - interval '1 minute'",
+  },
+  {
+    name: "O3: M2: an attempt exactly 15 minutes old still counts (boundary)",
+    file: "19",
+    from: "and a.occurred_at > now() - interval '15 minutes'",
+    to: "and a.occurred_at >= now() - interval '15 minutes'",
+  },
+  {
+    name: "O3: M2: reserved failures, not attempts, are what gets counted",
+    file: "19",
+    from: "where a.actor_id = p_actor and a.action = 'reauth_attempt'",
+    to: "where a.actor_id = p_actor and a.action in ('reauth_attempt', 'reauth_failed')",
+  },
+  {
+    name: "O3: M2: the attempt count is shared by every Owner (not per actor)",
+    file: "19",
+    from: "where a.actor_id = p_actor and a.action = 'reauth_attempt'",
+    to: "where a.action = 'reauth_attempt'",
+  },
+  {
+    name: "O3 M2 (real PostgreSQL only): attempts are no longer serialized per Owner (no advisory lock in reauth_begin)",
+    file: "19",
+    from: "  perform pg_advisory_xact_lock(hashtextextended('stateadv.reauth:' || p_actor::text, 0));\n  select coalesce(max(v.id), 0) into v_last",
+    to: "  select coalesce(max(v.id), 0) into v_last",
+    pgOnly: true,
+    files: ["tests/db/concurrency.pg.test.ts"],
+  },
 ];
 
 let problems = 0;
@@ -361,7 +509,9 @@ const ONLY = (process.env.MUTATION_ONLY ?? "")
   .map((x) => x.trim())
   .filter(Boolean);
 const SELECTED = MUTATIONS.filter(
-  (x) => ONLY.length === 0 || ONLY.some((o) => x.name.includes(o)),
+  (x) =>
+    (ONLY.length === 0 || ONLY.some((o) => x.name.includes(o))) &&
+    (!x.pgOnly || process.env.STATEADV_PG_URL), // pgOnly: needs real simultaneous connections (STATEADV_PG_URL)
 );
 for (const m of SELECTED) {
   const dir = mkdtempSync(join(tmpdir(), "stateadv-mut-"));
@@ -389,11 +539,15 @@ for (const m of SELECTED) {
       attempt <= 3 && verdict === "inconclusive";
       attempt++
     ) {
-      const r = spawnSync("npx", ["vitest", "run", "tests/db"], {
-        env: { ...process.env, STATEADV_MIGRATIONS_DIR: dir },
-        encoding: "utf8",
-        shell: true,
-      });
+      const r = spawnSync(
+        "npx",
+        ["vitest", "run", ...(m.files ?? ["tests/db"])],
+        {
+          env: { ...process.env, STATEADV_MIGRATIONS_DIR: dir },
+          encoding: "utf8",
+          shell: true,
+        },
+      );
       out = `${r.stdout}\n${r.stderr}`.replace(ANSI, "");
       status = r.status ?? 1;
       failed = Number((out.match(/Tests\s+(\d+) failed/) ?? [])[1] ?? 0);

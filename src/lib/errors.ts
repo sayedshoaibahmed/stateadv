@@ -8,6 +8,10 @@ export const DB_ERROR_MESSAGES: Record<string, string> = {
   // accounts
   NOT_ALLOWED: "You are not allowed to do this.",
   NOT_AUTHENTICATED: "Your sign-in has expired. Please sign in again.",
+  REAUTH_REQUIRED:
+    "Please enter your own password to confirm this action, then try again.",
+  REAUTH_LOCKED:
+    "Too many wrong passwords. Please wait 15 minutes and try again.",
   OWNER_ACTION_REQUIRES_OWNER:
     "Only another Owner can do this to an Owner account.",
   LAST_OWNER_PROTECTED:

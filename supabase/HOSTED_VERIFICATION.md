@@ -7,21 +7,27 @@ Rules for every check
 - Test accounts use addresses you control (`you+owner-test@…`). Delete nothing: switch test people off instead; the system never deletes records.
 - Do not mark a check as passed unless its "pass" line was actually observed.
 
-## 0. Applying migrations 11-18 (needs your explicit approval; NOT done)
+## 0. Applying migrations 11-18 (APPLIED and verified 2026-11-11, see 0h)
 
 Commit and push the current local changes first and wait for GitHub Actions to be green, so that the files applied are the files on GitHub.
 
 ### 0a. Preflight (read-only; every line must hold, otherwise STOP and report)
-| # | Check | Required |
-|---|---|---|
-| P1 | `select count(*) from supabase_migrations.schema_migrations` and max version | 10 and `20261111000010` |
-| P2 | exact counts: `bookings`, `agents_partners`, `booking_sequences`, `guests`, `resorts`, `payments`, `refunds`, `proofs`, `payment_schedules`, `expected_adjustments`, `user_profiles`, `auth.users`, `storage.objects` | all **0** |
-| P3 | `stay_types` 3, `payment_providers` 9 | as stated |
-| P4 | objects to be dropped exist exactly once: types `co_category`, `partner_type`; columns `bookings.co_category`, `bookings.agent_partner_id`, `agents_partners.type` | present |
-| P5 | nothing else depends on them (functions / views / policies mentioning `co_category`, `agent_partner`, `agents_partners`) | only `guard_booking` |
-| P6 | none of the 60 new function names, `co_categories`, `co_entries` exists | none |
-| P7 | `db push --dry-run --skip-vault` | lists exactly the expected files |
-| P8 | local working tree equals GitHub `main`, CI green | yes |
+
+`npm run preflight:hosted` (optionally `-- --pending=<version>[,<version>...]` to assert the exact pending list). Nothing is hard-coded: it reads the migration files, reads the hosted history and requires the history to be exactly the first N files, in order, with the same names; everything after that is pending. It only SELECTs (the Supabase CLI runs every query with `--read-only`) plus a dry run, and redacts every part of the connection string.
+
+| Check | What it proves |
+|---|---|
+| P1 | hosted history = the first N repository files (versions, names, order); the pending files are identified |
+| P2 | each pending migration with a destructive statement has declared preconditions in `supabase/preflight.json` (tables that must be empty, objects that must exist, only listed dependants, no clash with inserted rows) and they hold; additive migrations need none |
+| P3 | nothing the pending files create (tables, functions) exists yet; every function they replace does |
+| P4 | the Supabase CLI dry run lists exactly the pending files, in order |
+| P5 | the working tree is clean and equals `origin/main` |
+| P6 | every pending file exists on `origin/main`, identical to the working copy |
+| P7 | no pending migration has a destructive statement without its approval comment |
+| P8 | pending versions come after the latest applied one and are strictly increasing |
+| P9 | baseline: every function a pending file replaces has, on hosted, exactly the source of its LAST applied definition in the repository (`pg_proc.prosrc`), and the new policy names are free |
+
+A destructive migration with no entry in `supabase/preflight.json` fails P2: add its preconditions before it can be applied. The script was rehearsed on 2026-11-11 against a LOCAL database that pretends to be the hosted project: at history 18 it finds exactly migration 19 pending (P5 and P6 fail only because the change is not yet committed and pushed), at history 19 it reports nothing pending, and a tampered history name is rejected by P1.
 
 ### 0b. Checks only you can do (dashboard)
 The public API cannot show these. Please look and tell me:
@@ -54,7 +60,37 @@ Nothing in this sequence creates an account, changes a credential or deploys.
 | Verification afterwards | `npm run preflight:hosted` no longer applies; run the read-only queries of section 8 and compare with the expected result above; anonymous REST probes; advisors |
 | Stop rule | any failing statement: stop at once, change nothing else, report the exact error |
 
-### 0e. Rotating the compromised Secret Key (separate approval)
+### 0h. APPLIED to the hosted project, 2026-11-11 (evidence)
+
+Approved by the owner in two steps; applied with `supabase db push` from scratch copies of the migrations folder (stage A: 01-16, stage B: 01-17, then the repository for 18), each preceded by a dry run that listed exactly the files applied. Every run exited 0 with no error. Nothing else was changed (no keys rotated, no users created, no reset, no deployment).
+
+| Stage | Applied | Result |
+|---|---|---|
+| A | 11 account_self_service, 12 account_management, 13 master_data_functions, 14 booking_functions, 15 payment_refund_functions, 16 refund_limits | success; history 16; 85 functions; 38 callable by signed-in users; 0 by anon and by PUBLIC |
+| B1 | 17 configurable_co | success; history 17; tables 20, enums 8, triggers 103 (102 public + 1 on auth.users), policies 19 public + 6 storage |
+| B2 | 18 initial_resorts | success; history 18; four placeholder resorts SR1-SR4 "Sample Resort One..Four", all active, no location, contact or logo |
+
+**How it was verified (read-only).** A throw-away PostgreSQL 17 was rebuilt from the same migration files for each stage (01-16, 01-17, 01-18). The same catalog queries were then run on the local rebuild and on the hosted project and compared item by item: columns, constraints, indexes, triggers, policies, functions (definition hash, security definer, volatility, settings), function privileges for anon / signed-in / service_role / PUBLIC, table and column privileges, RLS flags, enums, views, relations. **Every category was identical at every stage** (after 18: 306 columns, 186 constraints, 82 indexes, 103 triggers, 25 policies, 85 functions, 183 table grants, 303 column grants, 20 tables all with RLS, 8 enums, 3 views). The comparison was first calibrated on the state after 16 (before 17 was applied) and matched too. Migration history after 18: exactly 18 rows, versions and names equal the files in git.
+
+Migration 17 specifically: types `co_category` and `partner_type` gone; columns `bookings.co_category` and `co_entries.type` (and `agent_partner_id`) gone; table `agents_partners` renamed to `co_entries`; index `co_entries_type_name_key` gone; new `bookings_co_rules` constraint present; no constraint or index name contains agent/partner; `co_categories` holds Agent (listed), Partner (listed), Own (typed), Direct (none), all active.
+
+Data after 18: stay types 3, payment apps 9, audit rows 16 (12 from before + 4 for the resorts; no audit rows for the seeded categories, as documented), resorts 4, co_categories 4; bookings, co_entries, guests, payments, refunds, proofs, user profiles, Auth users, Storage files all 0; 3 private buckets. Anonymous REST: resorts, bookings, user_profiles, co_categories, co_entries all 401 permission denied; the new functions are not reachable by anon. `npm run check:supabase`: Auth and database API ok.
+
+The safety export taken before the apply is in `stateadv-backups` (outside the repository). This evidence is local and uncommitted until the owner approves a commit.
+
+### 0i. Migration 19 (O3 re-authentication grants): written and tested locally, NOT applied
+
+Separate approval needed. Nothing here has been run on the hosted project. Plan when approved: (1) commit and push with CI green; (2) refresh the safety export (the schema changes); (3) `npm run preflight:hosted -- --pending=20261111000019` must pass P1-P9 (P9: the five functions to be replaced still have exactly migration 12's source on hosted, no name clash for the new table, functions and policy); (4) apply it (additive, no destructive statement) with the usual staged `db push` from a scratch folder; (5) post-apply comparison with a local rebuild (section 0j): expected history 19, tables 21, functions 89, callable by signed-in users 38 and by anon 0, columns 314, constraints 191, indexes 84, triggers 105 (104 public + 1 on auth.users), policies 26, relations 30, rows unchanged; (6) anonymous probes of the four new functions and the table (all refused); (7) the app code that issues grants must be deployed together with it. Full table in `MIGRATION_REVIEW.md` section 16. With only one Owner the real end-to-end check (a second Owner being switched off after a password re-entry) cannot be done on hosted; it is covered locally by REA-*, CON-19 and CON-20.
+
+### 0j. Post-apply comparison with a local rebuild (any migration, no hard-coded numbers)
+
+After ANY apply, prove the hosted structure equals what the migration files describe:
+1. Start a throw-away local PostgreSQL 17 (never a Supabase address) and set `STATEADV_PG_URL` (README, "Regenerating the database types").
+2. `npm run catalog:local -- --out=catalog.json` rebuilds the local database from the migration files (add `--upto=<version>` to stop at an earlier one) and writes a fingerprint of every function (definition, security-definer flag, settings, privileges for anon / signed-in / service role / PUBLIC), constraint, index, trigger, policy, column, grant, RLS flag, enum and view.
+3. `npm run catalog:compare -- catalog.json` (read-only; reads SUPABASE_DB_URL from .env.local; nothing is printed that could contain a credential) requires the hosted migration history to be exactly the migrations the file was built from and every category to be IDENTICAL. Row counts are printed for information only. Exit code 0 only if everything matches.
+4. The same method proved migrations 11-18 on 2026-11-11 (section 0h). It was rehearsed again on a local database that pretends to be hosted: identical state passes, a hosted state that is behind fails in every category.
+
+### 0e. Rotating the compromised Secret Key### 0e. Rotating the compromised Secret Key (separate approval)
 
 1. Where the key is used (checked 2026-11-11): `src/lib/supabase/admin.ts` (server only, `import 'server-only'`), `src/lib/env.server.ts` (reads it), `scripts/create-first-user.ts` and `scripts/recover-owner.ts` (one-time scripts reading `.env.local`), `scripts/check-client-bundle.mjs` (only searches the browser files for it). Vercel: not deployed yet, so no Vercel copy exists. GitHub Actions: not used (the CI build uses placeholders).
 2. Procedure (you do it, I never see the key): Supabase dashboard -> Project Settings -> API Keys -> create a **new** secret key -> paste it into `.env.local` as `SUPABASE_SECRET_KEY` (replace the old value) -> delete the **old** secret key in the dashboard. Down time: none, nothing runs yet.

@@ -426,3 +426,53 @@ export async function cancelBooking(
     }
   });
 }
+
+/**
+ * The server's step after a verified password (migration 19): a 60-second, single-use grant for ONE protected action on
+ * ONE account and ONE exact operation, bound to the acting Owner. Only the service role may issue it.
+ * `detail` is the operation: 'true'/'false' (set_active), 'owner'/'manager' (change_role), the lower-cased email
+ * (change_email, add_owner), null (reset_password). When omitted the common case is used: set_active -> 'false',
+ * change_role -> 'owner', reset_password -> null, add_owner -> the login's own email; change_email must say.
+ * Returns the id of the grant that was recorded (found afterwards: the database itself returns nothing).
+ */
+export async function reauth(
+  db: TestDb,
+  actor: string,
+  action:
+    | "add_owner"
+    | "change_role"
+    | "set_active"
+    | "reset_password"
+    | "change_email",
+  target: string,
+  detail?: string | null,
+): Promise<string> {
+  let d = detail;
+  if (d === undefined) {
+    if (action === "set_active") d = "false";
+    else if (action === "change_role") d = "owner";
+    else if (action === "reset_password") d = null;
+    else if (action === "add_owner")
+      d =
+        (
+          await db.q<{ e: string }>(
+            `select lower(email) e from auth.users where id = $1`,
+            [target],
+          )
+        )[0]?.e ?? null;
+    else throw new Error("change_email needs the new email");
+  }
+  await db.as({ role: "service_role" }, () =>
+    db.q(`select public.issue_reauth($1, $2, $3, $4)`, [
+      actor,
+      action,
+      target,
+      d,
+    ]),
+  );
+  const r = await db.q<{ id: string }>(
+    `select id from public.reauth_grants where user_id = $1 and action = $2 and target_id = $3 order by created_at desc, id limit 1`,
+    [actor, action, target],
+  );
+  return r[0].id;
+}

@@ -98,3 +98,9 @@ tests/
 ## Rehearsing the hosted situation (non-superuser migrations)
 
 On Supabase the migrations run as the role `postgres`, which is **not** a superuser. To test that, use a throw-away server whose superuser has another name (for example `bootstrap`, as the CI job `database-postgres-17-restricted` does) and set `STATEADV_PG_RESTRICTED=1`: the harness then runs every migration as a plain role named `postgres` that owns what it creates. If a migration quietly needed superuser rights, it fails there.
+
+## Checking the hosted project against the migrations (read-only)
+
+- `npm run preflight:hosted` — before applying anything: the hosted history must equal the first N migration files; it lists what is pending and checks that each pending migration is safe to apply (preconditions for destructive ones in `supabase/preflight.json`). Optional `-- --pending=<version>,...`.
+- `npm run catalog:local -- --out=catalog.json` then `npm run catalog:compare -- catalog.json` — after applying: rebuild the migrations on a throw-away local PostgreSQL (`STATEADV_PG_URL`) and compare every function, constraint, index, trigger, policy, grant and column with the hosted project.
+Both only read, and print no credential. Details: `supabase/HOSTED_VERIFICATION.md` sections 0a and 0j.

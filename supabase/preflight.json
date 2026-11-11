@@ -1,0 +1,44 @@
+{
+  "_about": "Preconditions that scripts/hosted-preflight.mjs (npm run preflight:hosted) checks, per migration, BEFORE that migration is applied to the hosted project. A migration with a destructive statement (DROP, DELETE, TRUNCATE, ALTER ... DROP/TYPE) MUST have an entry here, otherwise the preflight fails. Additive migrations need none. Keys: emptyTables (hosted tables that must hold 0 rows; 'schema.table' or public by default), mustExist (types, columns 'table.column', constraints that must exist before the migration drops or changes them), onlyDependants (nothing but the listed functions may depend on the listed types), noConflict (rows that would collide with what the migration inserts).",
+  "20261111000017": {
+    "why": "drops the C/O enum types and the old columns after converting data (DESTRUCTIVE-APPROVED in the file)",
+    "emptyTables": [
+      "bookings",
+      "agents_partners",
+      "booking_sequences",
+      "guests",
+      "resorts",
+      "payments",
+      "refunds",
+      "proofs",
+      "payment_schedules",
+      "expected_adjustments",
+      "user_profiles",
+      "auth.users",
+      "storage.objects"
+    ],
+    "mustExist": {
+      "types": ["co_category", "partner_type"],
+      "columns": [
+        "bookings.co_category",
+        "bookings.agent_partner_id",
+        "agents_partners.type"
+      ],
+      "constraints": ["bookings_co_rules"]
+    },
+    "onlyDependants": {
+      "types": ["co_category", "partner_type"],
+      "functions": ["guard_booking"]
+    }
+  },
+  "20261111000018": {
+    "why": "adds four placeholder resorts SR1 to SR4; they must not already exist",
+    "noConflict": [
+      {
+        "table": "resorts",
+        "column": "code",
+        "values": ["SR1", "SR2", "SR3", "SR4"]
+      }
+    ]
+  }
+}

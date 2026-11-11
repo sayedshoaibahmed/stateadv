@@ -1169,6 +1169,48 @@ export type Database = {
           },
         ];
       };
+      reauth_grants: {
+        Row: {
+          action: string;
+          created_at: string;
+          detail: string | null;
+          expires_at: string;
+          id: string;
+          target_id: string;
+          used_at: string | null;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          action: string;
+          created_at?: string;
+          detail?: string | null;
+          expires_at?: string;
+          id?: string;
+          target_id: string;
+          used_at?: string | null;
+          user_id: string;
+        };
+        Update: {
+          action?: string;
+          created_at?: string;
+          detail?: string | null;
+          expires_at?: string;
+          id?: string;
+          target_id?: string;
+          used_at?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reauth_grants_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "user_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       refunds: {
         Row: {
           amount_paise: number;
@@ -1714,6 +1756,15 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: undefined;
       };
+      consume_reauth: {
+        Args: {
+          p_action: string;
+          p_detail?: string;
+          p_target: string;
+          p_user: string;
+        };
+        Returns: undefined;
+      };
       create_booking: {
         Args: { p_idem: string; p_payload: Json; p_plan: Json };
         Returns: Json;
@@ -1754,6 +1805,15 @@ export type Database = {
         Returns: number;
       };
       is_active_user: { Args: Record<PropertyKey, never>; Returns: boolean };
+      issue_reauth: {
+        Args: {
+          p_action: string;
+          p_actor: string;
+          p_detail?: string;
+          p_target: string;
+        };
+        Returns: undefined;
+      };
       money_position: {
         Args: { p_booking: string };
         Returns: {
@@ -1849,6 +1909,14 @@ export type Database = {
       };
       queue_pdf_job: {
         Args: { p_booking: string; p_reason: string };
+        Returns: undefined;
+      };
+      reauth_begin: {
+        Args: { p_action: string; p_actor: string; p_target: string };
+        Returns: undefined;
+      };
+      record_reauth_failure: {
+        Args: { p_action: string; p_actor: string; p_target: string };
         Returns: undefined;
       };
       recover_owner_account: {

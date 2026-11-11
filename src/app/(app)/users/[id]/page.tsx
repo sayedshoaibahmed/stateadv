@@ -48,6 +48,8 @@ function describe(h: History): string {
   if (h.action === "insert") return `Added by ${by}`;
   if (h.action === "password_reset") return `Password reset by ${by}`;
   if (h.action === "owner_recovered") return "Recovered by the server script";
+  if (h.action === "reauth_verified") return `Password confirmed by ${by}`;
+  if (h.action === "reauth_failed") return `Wrong password entered by ${by}`;
   const fields = (h.changed_fields ?? [])
     .map((f) => FIELD_NAMES[f] ?? "details")
     .join(", ");

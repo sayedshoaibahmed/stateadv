@@ -1,11 +1,12 @@
 /**
  * Account management functions (migration 12; PRD FR-AUTH-3..16; O1-O7).
- * PGlite stand-in only. Everything is fictional. Password re-entry (O3) is NOT a database
- * rule - it is tested with the server actions.
+ * PGlite stand-in only. Everything is fictional. Password re-entry (O3) is enforced by the
+ * database through single-use grants (migration 19); every protected call below first issues one with reauth().
+ * The grants themselves are tested in reauth-grants.test.ts.
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import { expectDbError } from "./harness";
-import { setupWorld, uid, type World } from "./fixtures";
+import { reauth as issueGrant, setupWorld, uid, type World } from "./fixtures";
 
 let w: World;
 beforeAll(async () => {
@@ -18,6 +19,12 @@ const as = <T>(id: string | null, fn: () => Promise<T>) =>
   w.db.as({ role: "authenticated", uid: id }, fn);
 const call = (id: string | null, sql: string, p?: unknown[]) =>
   as(id, () => q(sql, p));
+
+const reauth = (
+  action: Parameters<typeof issueGrant>[2],
+  target: string,
+  actor: string = w.owner,
+) => issueGrant(w.db, actor, action, target);
 
 const LONG = "A proper written reason for this.";
 
@@ -34,6 +41,7 @@ async function makeProfile(
   tag?: string,
 ) {
   const l = await login(tag);
+  if (role === "owner") await reauth("add_owner", l.id, actor);
   await call(
     actor,
     `select public.profile_create($1, $2, $3, $4::public.user_role, null, $5)`,
@@ -105,6 +113,7 @@ describe("profile_create", () => {
       ),
       "REASON_REQUIRED",
     );
+    await reauth("add_owner", l.id);
     await call(
       w.owner,
       `select public.profile_create($1, 'Test Acm03', $2, 'owner', null, $3)`,
@@ -117,6 +126,7 @@ describe("profile_create", () => {
     );
     expect(a[0].reason).toBe(LONG);
     // keep the world at one Owner for the other tests: remove this extra Owner's activity by disabling later tests' reliance
+    await reauth("set_active", l.id);
     await call(w.owner, `select public.profile_set_active($1, false, $2)`, [
       l.id,
       LONG,
@@ -269,6 +279,7 @@ describe("profile_update", () => {
       ]),
       "REASON_REQUIRED",
     );
+    await reauth("change_role", m.id);
     await call(
       w.owner,
       `select public.profile_update($1, null, null, 'owner', $2)`,
@@ -282,6 +293,7 @@ describe("profile_update", () => {
     expect(a[0].reason).toBe(LONG);
     expect(a[0].changed_fields).toContain("role");
     // a second Owner now exists: it is allowed to demote nobody here, but the first Owner can be disabled by it
+    await reauth("set_active", m.id);
     await call(w.owner, `select public.profile_set_active($1, false, $2)`, [
       m.id,
       LONG,
@@ -325,6 +337,7 @@ describe("profile_set_active", () => {
       ]),
       "CANNOT_DISABLE_SELF",
     );
+    await reauth("set_active", w.owner);
     await expectDbError(
       call(w.owner, `select public.profile_set_active($1, false, $2)`, [
         w.owner,
@@ -351,6 +364,7 @@ describe("profile_set_active", () => {
       call(w.owner, `select public.profile_set_active($1, false)`, [o2.id]),
       "REASON_REQUIRED",
     );
+    await reauth("set_active", o2.id);
     await call(w.owner, `select public.profile_set_active($1, false, $2)`, [
       o2.id,
       LONG,
@@ -472,6 +486,7 @@ describe("profile_reset_password", () => {
       call(w.owner, `select public.profile_reset_password($1)`, [o2.id]),
       "REASON_REQUIRED",
     );
+    await reauth("reset_password", o2.id);
     await call(w.owner, `select public.profile_reset_password($1, $2)`, [
       o2.id,
       LONG,
@@ -489,6 +504,7 @@ describe("profile_reset_password", () => {
       ]),
       "CANNOT_RESET_OWN_PASSWORD",
     );
+    await reauth("set_active", o2.id);
     await call(w.owner, `select public.profile_set_active($1, false, $2)`, [
       o2.id,
       LONG,
@@ -525,6 +541,7 @@ describe("recover_owner_account (service role only)", () => {
   it("ACM-24: the server script re-enables a disabled Owner, forces a password change and audits 'owner_recovered'", async () => {
     // two Owners: switch the second one off, then recover it
     const o2 = await makeProfile(w.owner, "owner", "acm24");
+    await reauth("set_active", o2.id);
     await call(w.owner, `select public.profile_set_active($1, false, $2)`, [
       o2.id,
       LONG,
@@ -548,6 +565,7 @@ describe("recover_owner_account (service role only)", () => {
     expect(a).toHaveLength(1);
     expect(a[0].actor_id).toBeNull();
     expect(a[0].reason).toBe(LONG);
+    await reauth("set_active", o2.id);
     await call(w.owner, `select public.profile_set_active($1, false, $2)`, [
       o2.id,
       LONG,
