@@ -21,6 +21,20 @@ vi.mock("@/lib/bookings/actions", () => ({
   saveProviderAction: vi.fn(),
 }));
 
+vi.mock("@/lib/payments/actions", () => ({
+  addMoneyAction: vi.fn(),
+  updateWaitingAction: vi.fn(),
+  decideAction: vi.fn(),
+  addFilesAction: vi.fn(),
+  hideFileAction: vi.fn(),
+  addCorrectionAction: vi.fn(),
+}));
+vi.mock("@/lib/storage/actions", () => ({
+  prepareProofUploads: vi.fn(),
+  confirmProofUploads: vi.fn(),
+  proofDownloadUrl: vi.fn(),
+}));
+
 import { BookingListView } from "@/components/app/bookings/booking-list-view";
 import { BookingView, parseTab } from "@/components/app/bookings/booking-view";
 import { BookingForm } from "@/components/app/bookings/booking-form";
@@ -520,9 +534,10 @@ describe("booking page (VW-07..)", () => {
       "History",
     ])
       expect(t).toContain(l);
-    expect(text(view(base, "payments"))).toContain(
-      "Payments and refunds come next",
-    );
+    // M5: the Payments & Refunds tab is real (see VW-13b); only the PDFs tab is still a placeholder
+    expect(
+      text(view(base, "payments", { money: { payments: [], refunds: [] } })),
+    ).toContain("No payments yet");
     expect(text(view(base, "pdfs"))).toContain("Booking PDFs come later");
     expect(text(view(base, "history"))).toContain(
       "Ramesh Kumar created the booking.",
@@ -534,6 +549,73 @@ describe("booking page (VW-07..)", () => {
     expect(parseTab("nope")).toBe("details");
     expect(parseTab(undefined)).toBe("details");
     expect(parseTab(["history", "plan"])).toBe("history");
+  });
+  it("VW-13b: Payments & Refunds tab: lists with status, Add Payment and Add Refund buttons, empty and failed states", () => {
+    const pay = (over: Record<string, unknown> = {}) => ({
+      id: "p1",
+      code: "AAA-2026-000001-P1",
+      bookingId: "b1",
+      bookingCode: "AAA-2026-000001",
+      resortId: "r1",
+      guestName: "Asha Verma",
+      guestMobile: "98765 43210",
+      amountP: R(2000),
+      method: "upi",
+      providerName: "PhonePe",
+      providerOther: null,
+      reference: "UTR1",
+      date: "2026-11-10",
+      time: null,
+      reason: null,
+      status: "approved",
+      selfApproved: true,
+      recordedBy: "u1",
+      recordedByName: "Ramesh Kumar",
+      recordedAt: "2026-11-10T04:00:00Z",
+      decidedByName: "Ramesh Kumar",
+      rejectionReason: null,
+      reversalReason: null,
+      proofCount: 1,
+      version: 2,
+      ...over,
+    });
+    const base = detail();
+    const out = view(base, "payments", {
+      money: {
+        payments: [
+          pay(),
+          pay({
+            id: "p2",
+            code: "AAA-2026-000001-P2",
+            status: "waiting",
+            selfApproved: false,
+            amountP: R(1000),
+          }),
+          pay({
+            id: "p3",
+            code: "AAA-2026-000001-P3",
+            status: "reversed",
+            amountP: R(300),
+          }),
+        ] as never,
+        refunds: [],
+      },
+    });
+    const t = text(out);
+    expect(t).toContain("AAA-2026-000001-P1");
+    expect(t).toContain("UPI · PhonePe");
+    expect(t).toContain("Approved");
+    expect(t).toContain("Waiting for Approval");
+    expect(t).toContain("Reversed");
+    expect(t).toContain("Self-approved");
+    expect(out).toContain('href="/payments/new?booking=b1"');
+    expect(out).toContain('href="/refunds/new?booking=b1"');
+    expect(out).toContain('href="/payments/p1"');
+    expect(t).toContain("No refunds");
+    expect(out).toContain("line-through"); // a reversed amount is struck through
+    expect(text(view(base, "payments", { money: null }))).toContain(
+      "could not be loaded",
+    );
   });
   it("VW-14: the saved notice", () => {
     expect(text(view(detail(), "details", { saved: true }))).toContain(

@@ -1975,6 +1975,51 @@ export type Database = {
           line_no: number;
         }[];
       };
+      payment_list: {
+        Args: {
+          p_booking?: string;
+          p_date_type?: string;
+          p_from?: string;
+          p_limit?: number;
+          p_method?: Database["public"]["Enums"]["payment_method"];
+          p_offset?: number;
+          p_oldest_first?: boolean;
+          p_provider?: number;
+          p_q?: string;
+          p_recorded_by?: string;
+          p_resort?: string;
+          p_self_approved?: boolean;
+          p_status?: Database["public"]["Enums"]["approval_status"];
+          p_to?: string;
+        };
+        Returns: {
+          amount_paise: number;
+          booking_code: string;
+          booking_id: string;
+          decided_by_name: string;
+          guest_mobile: string;
+          guest_name: string;
+          is_self_approved: boolean;
+          method: Database["public"]["Enums"]["payment_method"];
+          payment_code: string;
+          payment_date: string;
+          payment_id: string;
+          payment_time: string;
+          proof_count: number;
+          provider_name: string;
+          provider_other: string;
+          recorded_at: string;
+          recorded_by: string;
+          recorded_by_name: string;
+          reference_number: string;
+          rejection_reason: string;
+          resort_id: string;
+          reversal_reason: string;
+          status: Database["public"]["Enums"]["approval_status"];
+          total_rows: number;
+          version: number;
+        }[];
+      };
       pl_bigint: {
         Args: { k: string; p: Json; p_default?: number };
         Returns: number;
@@ -2044,6 +2089,52 @@ export type Database = {
       recover_owner_account: {
         Args: { p_reason: string; p_target: string };
         Returns: undefined;
+      };
+      refund_list: {
+        Args: {
+          p_booking?: string;
+          p_date_type?: string;
+          p_from?: string;
+          p_limit?: number;
+          p_method?: Database["public"]["Enums"]["payment_method"];
+          p_offset?: number;
+          p_oldest_first?: boolean;
+          p_provider?: number;
+          p_q?: string;
+          p_recorded_by?: string;
+          p_resort?: string;
+          p_self_approved?: boolean;
+          p_status?: Database["public"]["Enums"]["approval_status"];
+          p_to?: string;
+        };
+        Returns: {
+          amount_paise: number;
+          booking_code: string;
+          booking_id: string;
+          decided_by_name: string;
+          guest_mobile: string;
+          guest_name: string;
+          is_self_approved: boolean;
+          method: Database["public"]["Enums"]["payment_method"];
+          proof_count: number;
+          provider_name: string;
+          provider_other: string;
+          reason: string;
+          recorded_at: string;
+          recorded_by: string;
+          recorded_by_name: string;
+          reference_number: string;
+          refund_code: string;
+          refund_date: string;
+          refund_id: string;
+          refund_time: string;
+          rejection_reason: string;
+          resort_id: string;
+          reversal_reason: string;
+          status: Database["public"]["Enums"]["approval_status"];
+          total_rows: number;
+          version: number;
+        }[];
       };
       reject_payment: {
         Args: { p_expected_version: number; p_id: string; p_reason: string };

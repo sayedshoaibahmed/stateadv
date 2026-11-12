@@ -4,6 +4,8 @@ import { BookingView, parseTab } from "@/components/app/bookings/booking-view";
 import { ErrorState } from "@/components/app/states";
 import { requireUser } from "@/lib/auth/session";
 import { loadBookingDetail } from "@/lib/bookings/data";
+import { loadMoneyList, type MoneyRow } from "@/lib/payments/data";
+import { parseMoneyFilter } from "@/lib/payments/list";
 import { todayIst } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Booking" };
@@ -35,10 +37,23 @@ export default async function BookingPage({
   if (!d.data) notFound();
   const first = (v: string | string[] | undefined) =>
     Array.isArray(v) ? v[0] : v;
+  const tab = parseTab(sp.tab);
+  let money: { payments: MoneyRow[]; refunds: MoneyRow[] } | null = null;
+  if (tab === "payments") {
+    const [p, r] = await Promise.all([
+      loadMoneyList(
+        parseMoneyFilter("payment", { booking: id }, { size: 100 }),
+      ),
+      loadMoneyList(parseMoneyFilter("refund", { booking: id }, { size: 100 })),
+    ]);
+    money =
+      p.ok && r.ok ? { payments: p.data.rows, refunds: r.data.rows } : null;
+  }
   return (
     <BookingView
       d={d.data}
-      tab={parseTab(sp.tab)}
+      money={money}
+      tab={tab}
       today={todayIst()}
       saved={first(sp.saved) === "1"}
       showReplaced={first(sp.replaced) === "1"}

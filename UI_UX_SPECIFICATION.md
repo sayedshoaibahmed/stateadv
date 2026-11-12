@@ -223,3 +223,8 @@ Visible labels on all fields. Errors linked to fields with `aria-describedby`. K
 - **Built as specified:** 3.3 Bookings list, 3.4 Add / Edit Booking (all sections, plan editor rules D2), 3.5 Booking page (Details, Payment Plan, History; Payments & Refunds and PDFs are placeholders until M5 and M7), 3.6 Cancel / No-show dialog, 3.12 Guests, 3.17 Payment Apps, and the global search box (opens `/search`).
 - **Differences, on purpose:** "Save and Add Payment" is not on the form until payments exist (M5). The C/O buttons show every switched-on category (categories are configurable), not a fixed four. Search results open on their own page `/search?q=`.
 - **Wording:** plain English throughout; field errors appear next to the field and as one sentence at the top; every button and field is at least 44 px tall.
+
+## M5 build notes (2026-11-12)
+- **Built as specified:** 3.7 Add Payment, 3.8 Add Refund, 3.9 Waiting for Approval (tabs, oldest first, review panel, next item opens), 3.10 Payments and Refunds lists with the listed filters, and the Payments & Refunds tab of the booking page (3.5).
+- **Differences, on purpose:** Add Payment and Add Refund are full pages (the spec allows "page or sheet"), reached from the booking page, so "Save and Add Payment" on the booking form is not offered (the booking page has the button). After saving, the new item's page opens with the saved message and any warnings. The approvals review panel shows the files, the facts, the booking's figures and the history; the files open in a viewer with zoom.
+- **Wording:** "Waiting", "Amount Due", "Payment Method", "Payment Proof", "Approve", "Reject", "Reverse", "Refund"; every action says what will happen; Approve, Reject and Reverse ask first.

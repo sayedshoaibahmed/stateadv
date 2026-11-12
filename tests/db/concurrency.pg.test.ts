@@ -968,4 +968,76 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
     );
     expect(rows.map((r) => r.source)).toEqual(["created", "cancellation"]);
   });
+  it("CON-23 (M5): one person approving and another rejecting the same payment at the same moment: exactly one decision is recorded", async () => {
+    const b = await newBooking();
+    const d = await day(0);
+    const pay = await asManager(() =>
+      w.db.q<{ r: Json }>(
+        `select public.add_payment($1::jsonb, null, $2::uuid) as r`,
+        [
+          j({
+            booking_id: b,
+            amount_paise: 100000,
+            method: "cash",
+            payment_date: d,
+          }),
+          uid(),
+        ],
+      ),
+    );
+    const id = pay[0].r.id;
+    const res = await parallel([w.owner, w.manager2], (c, i) =>
+      i === 0
+        ? c.query(`select public.approve_payment($1, 1)`, [id])
+        : c.query(`select public.reject_payment($1, 1, 'Wrong booking')`, [id]),
+    );
+    expect(res.filter((r) => r.ok)).toHaveLength(1);
+    for (const r of res)
+      if (!r.ok) expect(r.error).toMatch(/ALREADY_DECIDED|STALE_RECORD/);
+    const h = await w.db.q<{ to_status: string }>(
+      `select to_status::text from public.approval_history where payment_id = $1 and to_status in ('approved', 'rejected')`,
+      [id],
+    );
+    expect(h).toHaveLength(1);
+    const [{ s, a, r }] = await w.db.q<{
+      s: string;
+      a: string | null;
+      r: string | null;
+    }>(
+      `select status::text s, approved_by::text a, rejected_by::text r from public.payments where id = $1`,
+      [id],
+    );
+    expect(
+      (s === "approved" && a !== null && r === null) ||
+        (s === "rejected" && r !== null && a === null),
+    ).toBe(true);
+  });
+
+  it("CON-24 (M5): the same Add Payment pressed 10 times at once saves exactly one payment and one number", async () => {
+    const b = await newBooking();
+    const d = await day(0);
+    const key = uid();
+    const payload = j({
+      booking_id: b,
+      amount_paise: 100000,
+      method: "cash",
+      payment_date: d,
+    });
+    const res = await parallel(Array(10).fill(w.manager), (c) =>
+      c.query(`select public.add_payment($1::jsonb, null, $2::uuid) as r`, [
+        payload,
+        key,
+      ]),
+    );
+    expect(res.every((r) => r.ok)).toBe(true);
+    const ids = new Set(
+      res.map((r) => (r.ok ? (r.value.rows[0].r as Json).id : "")),
+    );
+    expect(ids.size).toBe(1);
+    const rows = await w.db.q<{ n: string }>(
+      `select count(*)::text n from public.payments where idempotency_key = $1`,
+      [key],
+    );
+    expect(rows[0].n).toBe("1");
+  });
 });

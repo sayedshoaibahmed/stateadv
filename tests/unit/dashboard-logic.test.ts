@@ -309,14 +309,18 @@ describe("menu", () => {
   });
   it("unbuilt pages are not links; built ones are", () => {
     const ready = MENU.filter((m) => m.ready).map((m) => m.key);
-    // M4 built Bookings, Add Booking and Guests; the rest stay "Soon" until their own step
+    // M4 built Bookings, Add Booking and Guests; M5 built Waiting for Approval, Payments and Refunds;
+    // the rest stay "Soon" until their own step
     expect(ready.sort()).toEqual([
       "add",
+      "approvals",
       "bookings",
       "dashboard",
       "guests",
       "partners",
+      "payments",
       "people",
+      "refunds",
       "resorts",
       "settings",
     ]);
@@ -338,7 +342,10 @@ describe("menu", () => {
     expect(activeKey("/bookings/abc/edit")).toBe("bookings");
     expect(activeKey("/bookings/new")).toBe("add");
     expect(activeKey("/guests/abc")).toBe("guests");
-    expect(activeKey("/approvals")).toBeNull();
+    expect(activeKey("/approvals")).toBe("approvals");
+    expect(activeKey("/payments/abc/edit")).toBe("payments");
+    expect(activeKey("/refunds/new")).toBe("refunds");
+    expect(activeKey("/calendar")).toBeNull(); // not built yet
     expect(activeKey("/dashboardx")).toBeNull();
   });
   it("badge text and resort filter pages", () => {

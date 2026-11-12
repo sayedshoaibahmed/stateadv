@@ -7,18 +7,25 @@ import { createHash, randomUUID } from "node:crypto";
 
 export type Bucket = "payment-proofs" | "booking-pdfs" | "resort-logos";
 
-export const MAX_PROOF_BYTES = 10 * 1024 * 1024;
-export const MAX_LOGO_BYTES = 2 * 1024 * 1024;
-export const MAX_FILES_PER_ITEM = 5;
-
-export const PROOF_MIME = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "application/pdf",
-] as const;
-export const LOGO_MIME = ["image/jpeg", "image/png", "image/webp"] as const;
-export type ProofMime = (typeof PROOF_MIME)[number];
+import {
+  LOGO_MIME,
+  MAX_LOGO_BYTES,
+  MAX_PROOF_BYTES,
+  PROOF_MIME,
+  type FileCheck,
+  type ProofMime,
+} from "./claims";
+export {
+  LOGO_MIME,
+  MAX_FILES_PER_ITEM,
+  MAX_LOGO_BYTES,
+  MAX_PROOF_BYTES,
+  PROOF_MIME,
+  checkClaim,
+  type FileCheck,
+  type FileClaim,
+  type ProofMime,
+} from "./claims";
 
 const EXT: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -81,42 +88,6 @@ export function detectMime(bytes: Uint8Array): ProofMime | null {
 
 export const sha256Hex = (bytes: Uint8Array): string =>
   createHash("sha256").update(bytes).digest("hex");
-
-export interface FileClaim {
-  name: string;
-  size: number;
-  type: string;
-}
-
-export type FileCheck =
-  { ok: true; mime: ProofMime } | { ok: false; message: string };
-
-/** What the browser says about a file before upload. Checked again after upload from the real bytes. */
-export function checkClaim(
-  f: FileClaim,
-  bucket: "payment-proofs" | "resort-logos" = "payment-proofs",
-): FileCheck {
-  const allowed: readonly string[] =
-    bucket === "resort-logos" ? LOGO_MIME : PROOF_MIME;
-  const max = bucket === "resort-logos" ? MAX_LOGO_BYTES : MAX_PROOF_BYTES;
-  if (!allowed.includes(f.type)) {
-    return {
-      ok: false,
-      message:
-        bucket === "resort-logos"
-          ? "Use a JPG, PNG or WEBP picture."
-          : "Use a JPG, PNG, WEBP or PDF file.",
-    };
-  }
-  if (!Number.isInteger(f.size) || f.size <= 0)
-    return { ok: false, message: "That file is empty." };
-  if (f.size > max)
-    return {
-      ok: false,
-      message: `That file is too big. The limit is ${max / 1024 / 1024} MB.`,
-    };
-  return { ok: true, mime: f.type as ProofMime };
-}
 
 /** Is the real content what was claimed? */
 export function checkContent(

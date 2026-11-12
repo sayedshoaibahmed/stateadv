@@ -4,7 +4,10 @@ import { Lock } from "lucide-react";
 import { BookingStatusBadge } from "@/components/app/booking-status";
 import { DateText } from "@/components/app/date-text";
 import { Money } from "@/components/app/money";
-import { EmptyState } from "@/components/app/states";
+import { EmptyState, ErrorState } from "@/components/app/states";
+import { MoneyTable } from "@/components/app/payments/money-views";
+import type { MoneyRow } from "@/lib/payments/data";
+import { buttonVariants } from "@/components/ui/button";
 import { BookingActions } from "@/components/app/bookings/booking-actions";
 import { allocateCoverage } from "@/lib/bookings/coverage";
 import type { BookingDetail } from "@/lib/bookings/data";
@@ -112,6 +115,68 @@ function MoneyBox({ d }: { d: BookingDetail }) {
         </p>
       ) : null}
     </section>
+  );
+}
+
+function PaymentsTab({
+  bookingId,
+  resortName,
+  money,
+}: {
+  bookingId: string;
+  resortName: string;
+  money: { payments: MoneyRow[]; refunds: MoneyRow[] } | null;
+}) {
+  if (money === null)
+    return (
+      <ErrorState
+        title="Payments and refunds could not be loaded"
+        retryHref={"/bookings/" + bookingId + "?tab=payments"}
+      />
+    );
+  const names = new Map<string, string>();
+  for (const r of [...money.payments, ...money.refunds])
+    names.set(r.resortId, resortName);
+  const section = (
+    title: string,
+    rows: MoneyRow[],
+    kind: "payment" | "refund",
+  ) => (
+    <section className="grid gap-2" aria-label={title}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-lg font-semibold">{title}</h3>
+        <Link
+          href={
+            (kind === "payment"
+              ? "/payments/new?booking="
+              : "/refunds/new?booking=") + bookingId
+          }
+          className={cn(
+            buttonVariants(kind === "payment" ? {} : { variant: "outline" }),
+            "min-h-11",
+          )}
+        >
+          {kind === "payment" ? "Add Payment" : "Add Refund"}
+        </Link>
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState
+          title={kind === "payment" ? "No payments yet" : "No refunds"}
+        >
+          {kind === "payment"
+            ? "Payments you add will be listed here. They count once they are approved."
+            : "A refund can be added when the guest has paid more than is due, or after a cancellation."}
+        </EmptyState>
+      ) : (
+        <MoneyTable kind={kind} rows={rows} resortNames={names} />
+      )}
+    </section>
+  );
+  return (
+    <div className="grid gap-6">
+      {section("Payments", money.payments, "payment")}
+      {section("Refunds", money.refunds, "refund")}
+    </div>
   );
 }
 
@@ -400,12 +465,15 @@ export function BookingView({
   today,
   saved,
   showReplaced,
+  money = null,
 }: {
   d: BookingDetail;
   tab: TabKey;
   today: string;
   saved: boolean;
   showReplaced: boolean;
+  /** this booking's payments and refunds (loaded only for the Payments & Refunds tab); null = not loaded or failed */
+  money?: { payments: MoneyRow[]; refunds: MoneyRow[] } | null;
 }) {
   const b = d.booking;
   const status = b.status as BookingStatus;
@@ -507,10 +575,11 @@ export function BookingView({
       </nav>
       {tab === "details" ? <DetailsTab d={d} /> : null}
       {tab === "payments" ? (
-        <EmptyState title="Payments and refunds come next">
-          Adding, approving and listing payments and refunds will be available
-          in the next step. The numbers above already follow the rules.
-        </EmptyState>
+        <PaymentsTab
+          bookingId={b.id}
+          resortName={d.resort?.name ?? "—"}
+          money={money}
+        />
       ) : null}
       {tab === "plan" ? (
         <PlanTab d={d} today={today} showReplaced={showReplaced} />

@@ -389,8 +389,14 @@ export function RecentPayments({
           className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"
         >
           <span>
-            {p.kind === "refund" ? "Refund" : "Payment"} {p.code} ·{" "}
-            {names.get(p.resortId) ?? "Resort"} · <DateText value={p.date} />
+            {p.kind === "refund" ? "Refund" : "Payment"}{" "}
+            <Link
+              href={(p.kind === "refund" ? "/refunds/" : "/payments/") + p.id}
+              className="underline underline-offset-4"
+            >
+              {p.code}
+            </Link>{" "}
+            · {names.get(p.resortId) ?? "Resort"} · <DateText value={p.date} />
           </span>
           <span className="flex flex-wrap items-center gap-2">
             <Money

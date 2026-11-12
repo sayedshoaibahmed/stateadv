@@ -62,7 +62,7 @@ export const MENU: readonly NavItem[] = [
     label: "Waiting for Approval",
     href: "/approvals",
     icon: "approvals",
-    ready: false,
+    ready: true,
     badge: "waiting",
   },
   {
@@ -70,14 +70,14 @@ export const MENU: readonly NavItem[] = [
     label: "Payments",
     href: "/payments",
     icon: "payments",
-    ready: false,
+    ready: true,
   },
   {
     key: "refunds",
     label: "Refunds",
     href: "/refunds",
     icon: "refunds",
-    ready: false,
+    ready: true,
   },
   {
     key: "calendar",
