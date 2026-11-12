@@ -591,3 +591,17 @@ Notes on decision 5:
 **How history is protected.** A booking stores `co_category_id`, `co_entry_id` and the **copies** `co_category_name`, `co_mode`, `co_name`, `stay_type_name`. The copies are written by `guard_booking` from the master data at the moment a choice is made (never by the caller) and are restored on every later update, so a rename, a change of kind or a switch-off can never rewrite or hide an old booking. A NEW or CHANGED choice must be switched on (`CO_INACTIVE`, `STAY_TYPE_INACTIVE`, `RESORT_INACTIVE`); an unchanged old choice may stay switched off. A composite foreign key `(co_entry_id, co_category_id) → co_entries (id, category_id)` makes it impossible to combine a name with another category's booking.
 
 **Migration order (all new; 01–10 are the applied ones):** 11 account self-service · 12 account management · 13 master data functions (incl. the C/O functions) · 14 booking functions · 15 payment/refund functions · 16 refund limits · **17 configurable C/O (converts `agents_partners` → `co_entries`, `bookings.co_category` → `co_category_id` + copies, adds `stay_type_name`, drops the two old enum types)** · **18 four placeholder resorts**. Functions in 13 and 14 name the tables and columns of 17; PostgreSQL looks names up when a function runs, so the order is safe, and the whole sequence is applied from scratch in every test run.
+
+## 5c. M6: PDF pipeline functions (migration 23, 2026-11-12; written and tested locally, NOT applied to hosted)
+No table changed. `booking_pdf_versions`, `pdf_jobs` and the private bucket `booking-pdfs` (M2) are used as they are. All functions are SECURITY DEFINER with an empty `search_path`.
+| Function | Who may call | Purpose |
+|---|---|---|
+| `pdf_actor()` | internal | NULL for the service role (retry job), the user for an active person, otherwise `NOT_ALLOWED` |
+| `pdf_booking_data(booking)` | authenticated, service role | everything printed on the PDF as JSON; money comes from `booking_financials` (D1); times as IST text |
+| `pdf_hash(json)` | internal | SHA-256 of the printed content (the generation time is not part of it) |
+| `pdf_prepare(booking)` | authenticated, service role | `{needed, version_no, path, hash, latest_version, data}`; the database picks the next number and the storage name |
+| `register_pdf_version(booking, hash, version, reason, size)` | authenticated, service role | locks the booking, recomputes the hash (`PDF_STALE`), returns `created:false` when nothing changed, requires version = highest + 1 (`PDF_VERSION_CONFLICT`), checks the stored object's size and type (`INVALID_FILE`), stores the totals summary |
+| `finish_pdf_jobs(booking, up_to, ok, error)` | authenticated, service role | closes the open jobs up to the highest id seen; error text cut to 300 characters |
+| `claim_pdf_jobs(max)` | service role only | `FOR UPDATE SKIP LOCKED`; pending or failed jobs with fewer than 5 attempts, or running longer than 15 minutes; at most 50 |
+| `request_pdf_regeneration(booking)` | authenticated | queues a job "regenerate requested" |
+Expected counts on hosted after migration 23: 106 functions (+7 over 99), 53 authenticated-callable (+5 over 48), 0 anon/PUBLIC. Not verified on hosted (not applied).

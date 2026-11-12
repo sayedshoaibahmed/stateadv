@@ -14,9 +14,11 @@ const m = vi.hoisted(() => ({
   upsertProvider: vi.fn(),
   booking: { current: null as Record<string, unknown> | null },
   rpc: vi.fn(),
+  schedulePdf: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/pdf/schedule", () => ({ schedulePdf: m.schedulePdf }));
 vi.mock("@/lib/auth/session", () => ({ requireUser: m.requireUser }));
 vi.mock("@/lib/db/actions", () => ({
   createBooking: m.createBooking,
@@ -758,5 +760,78 @@ describe("guests, quick add, payment apps (ACT-U19..)", () => {
       name: "PhonePe",
       active: false,
     }); // unchecked box = switched off
+  });
+});
+
+describe("a PDF is queued for making only after a save (BA-PDF)", () => {
+  const BOOKING = "44444444-4444-4444-8444-444444444444";
+  it("BA-PDF-1: saved: create, edit, status, cancel, charge change and plan change each hand the booking to the PDF maker", async () => {
+    await createBookingAction({ values: valid(), idempotencyKey: KEY });
+    expect(m.schedulePdf).toHaveBeenLastCalledWith(BOOKING);
+    m.schedulePdf.mockClear();
+    await updateBookingAction({
+      bookingId: ID,
+      expectedVersion: 2,
+      values: valid({ remarks: "Late" }),
+      sendPlan: false,
+      movePaise: 0,
+    });
+    await setStatusAction({
+      bookingId: ID,
+      expectedVersion: 2,
+      status: "checked_in",
+    });
+    m.planPreview.mockResolvedValue({
+      ok: true,
+      data: { ...preview, amount_due_paise: R(1000), to_plan_paise: R(1000) },
+    });
+    await cancelBookingAction({
+      bookingId: ID,
+      expectedVersion: 2,
+      kind: "cancelled",
+      date: TODAY,
+      charge: "1000",
+      reason: "Guest cancelled",
+      chargeChangeReason: "",
+      plan: [{ label: "Cancellation charge", dueDate: TODAY, amount: "1000" }],
+    });
+    m.booking.current = {
+      ...m.booking.current,
+      status: "cancelled",
+      cancellation_charge_paise: R(1000),
+    };
+    await changeChargeAction({
+      bookingId: ID,
+      expectedVersion: 2,
+      charge: "1000",
+      reason: "Correction",
+      plan: [{ label: "Cancellation charge", dueDate: TODAY, amount: "1000" }],
+    });
+    m.planPreview.mockResolvedValue({ ok: true, data: preview });
+    await changePlanAction({
+      bookingId: ID,
+      expectedVersion: 2,
+      reason: "Guest asked",
+      movePaise: 0,
+      plan: [{ label: "Balance", dueDate: TODAY, amount: "4500" }],
+    });
+    expect(m.schedulePdf).toHaveBeenCalledTimes(5);
+    for (const c of m.schedulePdf.mock.calls) expect(c).toEqual([ID]);
+  });
+  it("BA-PDF-2: a refused save never queues a PDF (nothing changed)", async () => {
+    m.createBooking.mockResolvedValue({ ok: false, message: "No." });
+    await createBookingAction({ values: valid(), idempotencyKey: KEY });
+    await createBookingAction({
+      values: valid({ plan: [] }),
+      idempotencyKey: KEY,
+    });
+    m.setBookingStatus.mockResolvedValue({ ok: false, message: "No." });
+    await setStatusAction({
+      bookingId: ID,
+      expectedVersion: 2,
+      status: "checked_in",
+    });
+    expect(m.schedulePdf).not.toHaveBeenCalled();
+    void BOOKING;
   });
 });

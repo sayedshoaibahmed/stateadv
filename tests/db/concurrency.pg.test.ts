@@ -1040,4 +1040,65 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
     );
     expect(rows[0].n).toBe("1");
   });
+  it("CON-25 (M6): the same PDF version registered by 8 people at once: exactly one version is created, the rest are told it exists or conflicts", async () => {
+    const b = await newBooking();
+    const [{ r: prep }] = await mq<{ r: Json }>(
+      `select public.pdf_prepare($1) as r`,
+      [b],
+    );
+    await w.db.q(
+      `insert into storage.objects (bucket_id, name, metadata) values ('booking-pdfs', $1, $2::jsonb)`,
+      [prep.path, j({ size: 4000, mimetype: "application/pdf" })],
+    );
+    const res = await parallel(Array(8).fill(w.manager), (c) =>
+      c.query(
+        `select public.register_pdf_version($1, $2, $3, 'booking created', 4000) as r`,
+        [b, prep.hash, prep.version_no],
+      ),
+    );
+    expect(res.every((r) => r.ok || /PDF_VERSION_CONFLICT/.test(r.error))).toBe(
+      true,
+    );
+    expect(
+      res.filter((r) => r.ok && (r.value.rows[0].r as Json).created === true),
+    ).toHaveLength(1);
+    const rows = await w.db.q<{ n: string }>(
+      `select count(*)::text n from public.booking_pdf_versions where booking_id = $1`,
+      [b],
+    );
+    expect(rows[0].n).toBe("1");
+  });
+
+  it("CON-26 (M6): five retry runs claiming at the same moment never take the same job", async () => {
+    await w.db.q(`update public.pdf_jobs set status = 'done'`);
+    const ids: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      const b = await newBooking();
+      await mq(`select public.update_booking($1, 1, $2::jsonb)`, [
+        b,
+        j({ remarks: `r${i}` }),
+      ]);
+      ids.push(b);
+    }
+    const res = await parallel(Array(5).fill(w.owner), async (c) => {
+      await c.query("set role service_role");
+      try {
+        return await c.query(
+          `select job_id::text from public.claim_pdf_jobs(3)`,
+        );
+      } finally {
+        await c.query("reset role");
+      }
+    });
+    expect(res.every((r) => r.ok)).toBe(true);
+    const claimed = res.flatMap((r) =>
+      r.ok ? r.value.rows.map((x: { job_id: string }) => x.job_id) : [],
+    );
+    expect(new Set(claimed).size).toBe(claimed.length); // no job twice
+    const open = await w.db.q<{ n: string }>(
+      `select count(*)::text n from public.pdf_jobs where status = 'running'`,
+    );
+    expect(Number(open[0].n)).toBe(claimed.length);
+    expect(claimed.length).toBeGreaterThanOrEqual(6); // every job (6 bookings, 6 jobs plus the creation jobs) is claimed once or left open
+  });
 });

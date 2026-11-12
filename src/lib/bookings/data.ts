@@ -25,6 +25,7 @@ type Schedule = Database["public"]["Tables"]["payment_schedules"]["Row"];
 type Revision = Database["public"]["Tables"]["payment_plan_revisions"]["Row"];
 type Adjustment = Database["public"]["Tables"]["expected_adjustments"]["Row"];
 type Financials = Database["public"]["Views"]["booking_financials"]["Row"];
+type PdfVersion = Database["public"]["Tables"]["booking_pdf_versions"]["Row"];
 
 // ------------------------------------------------------------ form choices
 export interface FormOptions {
@@ -120,6 +121,16 @@ export interface BookingDetail {
   createdByName: string | null;
   updatedByName: string | null;
   cancelledByName: string | null;
+  /** every saved PDF version, newest first */
+  pdfs: Pick<
+    PdfVersion,
+    "id" | "version_no" | "trigger_reason" | "size_bytes" | "generated_at"
+  >[];
+  /** PDF jobs not finished: waiting, running or failed (with the short message) */
+  pdfJobs: {
+    status: "pending" | "running" | "failed";
+    lastError: string | null;
+  }[];
 }
 
 export async function loadBookingDetail(
@@ -138,7 +149,7 @@ export async function loadBookingDetail(
       .maybeSingle();
     if (error) throw new Error("booking");
     if (!booking) return null;
-    const [fin, resort, guest, sched, revs, adj, audit, people] =
+    const [fin, resort, guest, sched, revs, adj, audit, people, pdfs, jobs] =
       await Promise.all([
         supabase
           .from("booking_financials")
@@ -190,6 +201,16 @@ export async function loadBookingDetail(
               booking.cancelled_by,
             ].filter((x): x is string => !!x),
           ),
+        supabase
+          .from("booking_pdf_versions")
+          .select("id, version_no, trigger_reason, size_bytes, generated_at")
+          .eq("booking_id", id)
+          .order("version_no", { ascending: false }),
+        supabase
+          .from("pdf_jobs")
+          .select("status, last_error")
+          .eq("booking_id", id)
+          .in("status", ["pending", "running", "failed"]),
       ]);
     const name = (uid: string | null) =>
       uid
@@ -214,6 +235,14 @@ export async function loadBookingDetail(
       createdByName: name(booking.created_by),
       updatedByName: name(booking.updated_by),
       cancelledByName: name(booking.cancelled_by),
+      pdfs: pdfs.data ?? [],
+      pdfJobs: (jobs.data ?? []).flatMap((j) =>
+        j.status === "pending" ||
+        j.status === "running" ||
+        j.status === "failed"
+          ? [{ status: j.status, lastError: j.last_error }]
+          : [],
+      ),
     };
   });
 }

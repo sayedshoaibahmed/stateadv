@@ -259,3 +259,6 @@ Adds two functions: `payment_list`, `refund_list`. Read-only; SECURITY INVOKER; 
 **Not done, so not claimed:** (1) no real *authenticated* call of `payment_list` or `refund_list` against hosted (needs a login; hosted has no payments or refunds, so the lists would be empty); (2) no browser test of the M5 screens, no real proof upload and no check of the signed-URL file viewer under the content-security policy. These are on the M9 browser QA checklist in PROGRESS.md (after M8).
 
 Nothing else happened: no other migration, no user created, no password or role changed, no deployment, no change to authentication or storage settings.
+
+## 0n. Migration 23 (PDF pipeline): NOT APPLIED to hosted
+Nothing about migration 23 has been done on hosted. When approved and applied, verify read-only: 106 functions, 48+5 = 53 authenticated-callable, 0 anon/PUBLIC, `claim_pdf_jobs` executable by the service role only, catalog equals the local rebuild in all 14 categories, tables/policies/triggers unchanged (21 / 26 / 105), audit rows unchanged, no bookings or PDFs created.

@@ -21,6 +21,10 @@ vi.mock("@/lib/bookings/actions", () => ({
   saveProviderAction: vi.fn(),
 }));
 
+vi.mock("@/lib/pdf/actions", () => ({
+  pdfDownloadAction: vi.fn(),
+  regeneratePdfAction: vi.fn(),
+}));
 vi.mock("@/lib/payments/actions", () => ({
   addMoneyAction: vi.fn(),
   updateWaitingAction: vi.fn(),
@@ -399,6 +403,8 @@ function detail(
     createdByName: "Ramesh Kumar",
     updatedByName: "Ramesh Kumar",
     cancelledByName: null,
+    pdfs: [],
+    pdfJobs: [],
   };
 }
 const view = (
@@ -538,7 +544,8 @@ describe("booking page (VW-07..)", () => {
     expect(
       text(view(base, "payments", { money: { payments: [], refunds: [] } })),
     ).toContain("No payments yet");
-    expect(text(view(base, "pdfs"))).toContain("Booking PDFs come later");
+    // M6: the PDFs tab is real (see tests/unit/pdf-views.test.ts); with no version yet it says so
+    expect(text(view(base, "pdfs"))).toContain("No PDF yet");
     expect(text(view(base, "history"))).toContain(
       "Ramesh Kumar created the booking.",
     );

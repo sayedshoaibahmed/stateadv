@@ -5,6 +5,8 @@ import { BookingStatusBadge } from "@/components/app/booking-status";
 import { DateText } from "@/components/app/date-text";
 import { Money } from "@/components/app/money";
 import { EmptyState, ErrorState } from "@/components/app/states";
+import { PdfTab } from "@/components/app/pdf/pdf-tab";
+import { DownloadPdfButton } from "@/components/app/pdf/pdf-actions";
 import { MoneyTable } from "@/components/app/payments/money-views";
 import type { MoneyRow } from "@/lib/payments/data";
 import { buttonVariants } from "@/components/ui/button";
@@ -501,6 +503,9 @@ export function BookingView({
             {b.booking_code}
           </h1>
           <BookingStatusBadge status={status} />
+          {d.pdfs[0] ? (
+            <DownloadPdfButton versionId={d.pdfs[0].id} label="Download PDF" />
+          ) : null}
         </div>
         <p className="text-muted-foreground">
           {d.resort ? d.resort.name : "Resort"} · {b.guest_name} ·{" "}
@@ -584,11 +589,7 @@ export function BookingView({
       {tab === "plan" ? (
         <PlanTab d={d} today={today} showReplaced={showReplaced} />
       ) : null}
-      {tab === "pdfs" ? (
-        <EmptyState title="Booking PDFs come later">
-          The booking PDF and its versions will appear here.
-        </EmptyState>
-      ) : null}
+      {tab === "pdfs" ? <PdfTab d={d} /> : null}
       {tab === "history" ? (
         d.timeline.length === 0 ? (
           <EmptyState title="No history yet">

@@ -450,3 +450,11 @@ The earlier PAY-*, APR-*, REF-*, FIN-* and CON-* database tests (M2) are unchang
 On hosted (read-only, 2026-11-12): definitions, SECURITY INVOKER, search_path, grants, counts (99 / 48 / 0), catalog equality in all 14 categories, unchanged data and financial logic, and anonymous refusal (HTTP 401) of the two list functions were checked. **Not done:** an authenticated call against hosted, and E2E or visual checks of the M5 screens.
 
 **M9 browser QA checklist for M5 (after M8; none of it done yet):** signed-in `payment_list` / `refund_list` calls against hosted; Add Payment and Add Refund browser workflows; payment and refund approval, rejection and reversal; private proof upload and viewing; signed URL and CSP compatibility; the proof correction workflow; layouts at 360 / 768 / 1280. The full wording is in PROGRESS.md.
+
+## 2.24 M6: booking PDFs (tests run locally; migration 23 NOT applied to hosted)
+- `tests/db/pdf-pipeline.test.ts` PDB-01..26 (PGlite, PG17 superuser, PG17 restricted): content and hash, dedup, version rules, stale content, file checks, job claiming, grants, access.
+- `tests/db/pdf-end-to-end.test.ts` E2E-01..08: a real PDF rendered from real database functions and registered.
+- `tests/db/concurrency.pg.test.ts` CON-25/26: two runs at once give one version; claims never overlap.
+- Unit: `pdf-model` PM-01..18, `pdf-render` PR-01..09, `pdf-pipeline` PP-01..16, `pdf-actions` PDFA-01..11, `pdf-views` PV6-01..05, `pdf-security` PDFS-01..10; BA-PDF and PA-PDF check that each booking and payment action schedules a PDF.
+- **Result 2026-11-12:** ESLint, tsc, Prettier clean; PGlite suite 1025 passed (26 skipped are PG17-only); PG17 superuser 522 passed; PG17 restricted 522 passed; concurrency 26 passed; check:migrations 23 files; secret scan, bundle scan clean; npm audit 0; production build OK.
+- Not tested: browser, visual PDF layout, real signed downloads, Vercel cron. Mutation tests: none for M6 by plan.

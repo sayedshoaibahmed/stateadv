@@ -58,7 +58,7 @@ M2: essential targeted security and financial-rule checks only. M3, M4, M6, M7, 
 | M3 | UI and Dashboard | 🟡 Built, committed (`a4ea2de`, comment fix `714a514`, both pushed); migration 20 (dashboard functions) **applied to hosted and verified 2026-11-12**. Open: no real authenticated call tested on hosted; page not yet viewed in a browser against hosted | Browser QA stays deferred (after M8; comprehensive QA in M9) |
 | M4 | Resort, Guest and Booking Management | 🟡 Built, committed (`0ec47fa`, pushed, CI green); migration 21 (booking and guest lists) **applied to hosted and verified 2026-11-12**. Open: no real authenticated call tested on hosted; screens not yet viewed in a browser against hosted | Browser QA stays deferred (after M8; final QA in M9) |
 | M5 | Payment Management and Approvals | 🟡 Built, committed (`1eb65b5`, pushed, CI run #17 passed all four jobs, reported by the owner); migration 22 (payment and refund lists) **applied to hosted and verified 2026-11-12**. Open: no authenticated call of the two functions tested on hosted; the screens, uploads and approvals not yet tried in a browser | Browser QA stays deferred (after M8; final QA in M9, checklist below) |
-| M6 | Automatic PDF Generation | ⚪ Not started | No |
+| M6 | Automatic PDF Generation | 🟡 Built locally, **not committed, not pushed**. Migration 23 (PDF pipeline functions) written, tested locally, **NOT applied to hosted**. No browser test; no CI run yet | Committing, pushing and applying migration 23 each need a separate approval |
 | M7 | Calendar and Historical Records | ⚪ Not started | No |
 | M8 | Reports and Collections | ⚪ Not started | No |
 | M9 | Testing and Security | ⚪ Not started | No |
@@ -200,3 +200,37 @@ These are NOT done; none may be reported as passed until they are run in a real 
 - [ ] **Signed URL and CSP compatibility:** the file viewer's image and PDF frame under the app's content-security policy with the project's storage host; link expiry after 60 seconds; no storage credentials in the browser.
 - [ ] **Proof correction workflow:** a correction file on an approved item (reason of at least 10 letters, "Added after approval" tag, originals and amounts unchanged); refused on waiting, rejected and reversed items.
 - [ ] Layouts at 360, 768 and 1280 pixels for all of the above.
+
+
+## M6: Booking PDFs and Document Management (built locally, not committed)
+**Status, plainly:** implemented and tested locally. Not committed, not pushed, not CI-verified, **migration 23 not applied to hosted**, not deployed, not browser-tested.
+
+**Reused, not rebuilt:** tables `booking_pdf_versions` and `pdf_jobs`, the private bucket `booking-pdfs` and its storage rule (M2); `booking_financials` (D1, unchanged); the audit trail. No migration 01-22 was changed.
+
+**New:**
+- Migration `20261111000023_pdf_pipeline.sql`: `pdf_booking_data` (all printed content, money taken from `booking_financials`), `pdf_prepare` (content hash, next version number and storage path chosen by the database), `register_pdf_version` (re-checks the hash, de-duplicates, enforces version = highest + 1, checks the stored file's size and type), `finish_pdf_jobs`, `claim_pdf_jobs` (service role only), `request_pdf_regeneration`, and the internal helpers `pdf_actor`, `pdf_hash`. Expected hosted counts after applying: 106 functions, 53 authenticated-callable, 0 anon/PUBLIC.
+- `src/lib/pdf/`: `model.ts` (formatting only, no money arithmetic), `document.tsx` and `render.tsx` (react-pdf, bundled Noto Sans with the rupee sign), `pipeline.ts` (prepare, render, re-check, upload, register, finish; never throws; safe messages), `schedule.ts` (runs after the save through `after()`), `actions.ts` (Regenerate, 60-second signed download link).
+- `src/app/api/cron/pdf-retry/route.ts` and `vercel.json` (every 10 minutes, `CRON_SECRET` bearer, constant-time compare, closed when unset). This is the only new place that uses the secret key.
+- PDFs tab, header "Download PDF" button, Regenerate PDF button; PDFs are scheduled after every booking, payment, refund, approval, file and correction change.
+
+**Tests:** PGlite PDB-01..26, E2E-01..08 (real PDF rendered from real DB functions); PG17 superuser and restricted: same plus CON-25/26 concurrency; unit PM, PR, PP, PDFA, PV6, PDFS. Full run: ESLint, tsc, Prettier clean; PGlite suite 1025 passed (26 skipped = PG17-only); PG17 superuser 522 passed, restricted 522 passed, concurrency 26 passed; `check:migrations` 23 files; secret scan clean; bundle scan clean (no react-pdf in browser files); `npm audit --omit=dev` 0 vulnerabilities; production build succeeds with the font files traced. Mutation tests for M6: none (per plan: ordinary tests only).
+
+**Limitations, stated plainly:**
+1. No browser test; no visual inspection of the rendered PDF (no PDF-to-image tool installed). Layout is checked through text extraction and parsing only.
+2. A real signed-URL download, a real logo fetch from the private `resort-logos` bucket, Vercel cron and font tracing on Vercel, and `after()` behaviour in production are not exercised outside unit and database tests.
+3. WEBP logos are skipped (PNG and JPEG only).
+4. Migration 23 is not on hosted, so on hosted the PDFs tab would show "No PDF yet" and generation would fail until it is applied (needs a fresh export, the exact SQL shown, preflight and a separate approval).
+5. A version number can have a gap if a run uploads and then fails to register; the retry job overwrites the orphan file (system rights only).
+
+### M9 browser QA checklist for M6 (NOT done)
+- [ ] Generate a PDF from a real booking; check the guest, stay, resort, charges, payments, refunds, totals and balance against the screen.
+- [ ] Download from the PDFs tab and the header button; the file opens and is named `{Booking ID}-v{n}.pdf`.
+- [ ] Multi-page PDF (many payments), long names and long notes, every optional field empty and filled, cancelled booking.
+- [ ] Regenerate with nothing changed ("no new PDF needed"); after a payment is approved a new version appears.
+- [ ] Private access: the file URL does not work signed out; a signed link stops working after 60 seconds; after sign-out the old link and the tab are not usable; a user cannot open another booking's PDF by guessing an id.
+- [ ] Layouts at 360, 768 and 1280 pixels (buttons at least 44 px).
+- [ ] CSP compatibility when the M9 nonce policy is added: downloads and the storage host.
+- [ ] Vercel: cron fires and returns 200 with the secret, 401 without; fonts are present in the function.
+- [ ] **Visual inspection** of the rendered PDF (layout, rupee sign, page breaks, logo placement); only text extraction and parsing were checked so far.
+- [ ] **Real resort logo** fetched from the private `resort-logos` bucket and printed; a booking whose resort has no logo or a WEBP logo still produces a PDF.
+- [ ] **Next.js `after()`**: on Vercel the PDF appears shortly after a save without delaying the save's response, and a failure leaves the booking saved with a retry queued.

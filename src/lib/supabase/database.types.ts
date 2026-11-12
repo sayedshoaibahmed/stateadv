@@ -1791,6 +1791,15 @@ export type Database = {
         Returns: undefined;
       };
       check_stay_type: { Args: { p_stay: number }; Returns: undefined };
+      claim_pdf_jobs: {
+        Args: { p_max?: number };
+        Returns: {
+          attempts: number;
+          booking_id: string;
+          job_id: number;
+          reason: string;
+        }[];
+      };
       clean_text: { Args: { p: string }; Returns: string };
       complete_password_change: {
         Args: Record<PropertyKey, never>;
@@ -1895,6 +1904,15 @@ export type Database = {
           p_to: Database["public"]["Enums"]["approval_status"];
         };
         Returns: Json;
+      };
+      finish_pdf_jobs: {
+        Args: {
+          p_booking: string;
+          p_error?: string;
+          p_ok: boolean;
+          p_up_to: number;
+        };
+        Returns: number;
       };
       guest_list: {
         Args: { p_limit?: number; p_offset?: number; p_q?: string };
@@ -2020,6 +2038,10 @@ export type Database = {
           version: number;
         }[];
       };
+      pdf_actor: { Args: Record<PropertyKey, never>; Returns: string };
+      pdf_booking_data: { Args: { p_booking: string }; Returns: Json };
+      pdf_hash: { Args: { p_data: Json }; Returns: string };
+      pdf_prepare: { Args: { p_booking: string }; Returns: Json };
       pl_bigint: {
         Args: { k: string; p: Json; p_default?: number };
         Returns: number;
@@ -2136,6 +2158,16 @@ export type Database = {
           version: number;
         }[];
       };
+      register_pdf_version: {
+        Args: {
+          p_booking: string;
+          p_hash: string;
+          p_reason: string;
+          p_size: number;
+          p_version: number;
+        };
+        Returns: Json;
+      };
       reject_payment: {
         Args: { p_expected_version: number; p_id: string; p_reason: string };
         Returns: Json;
@@ -2143,6 +2175,10 @@ export type Database = {
       reject_refund: {
         Args: { p_expected_version: number; p_id: string; p_reason: string };
         Returns: Json;
+      };
+      request_pdf_regeneration: {
+        Args: { p_booking: string };
+        Returns: number;
       };
       require_active_user: {
         Args: Record<PropertyKey, never>;

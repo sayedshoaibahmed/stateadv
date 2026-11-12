@@ -81,6 +81,7 @@ Needs from the owner: GitHub access (private repo), a Supabase account for a **f
 - **Status (2026-11-12):** built, committed (`1eb65b5`) and pushed; migration 22 applied to hosted and verified (read-only); browser E2E and authenticated hosted calls wait for the deferred QA (M9 checklist in PROGRESS.md).
 
 ## M6 — Automatic PDF Generation
+**Status 2026-11-12:** built and tested locally; not committed; migration 23 not applied to hosted; no browser test (see PROGRESS).
 1. Template (all PRD §5.14 content, Noto Sans ₹, logo, disclaimer, version).
 2. Job processing after commit, content-hash de-duplication, version registration.
 3. Cron retry + Regenerate button. PDFs tab with downloads.

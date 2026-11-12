@@ -12,9 +12,15 @@ const m = vi.hoisted(() => ({
   hideProof: vi.fn(),
   addCorrectionFiles: vi.fn(),
   loadProviderChoices: vi.fn(),
+  schedulePdf: vi.fn(),
+  schedulePdfForItem: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/pdf/schedule", () => ({
+  schedulePdf: m.schedulePdf,
+  schedulePdfForItem: m.schedulePdfForItem,
+}));
 vi.mock("@/lib/auth/session", () => ({ requireUser: m.requireUser }));
 vi.mock("@/lib/db/actions", () => ({
   addPayment: m.addPayment,
@@ -100,7 +106,15 @@ beforeEach(() => {
 
 const dbCalls = () =>
   Object.entries(m)
-    .filter(([k]) => !["requireUser", "loadProviderChoices"].includes(k))
+    .filter(
+      ([k]) =>
+        ![
+          "requireUser",
+          "loadProviderChoices",
+          "schedulePdf",
+          "schedulePdfForItem",
+        ].includes(k),
+    )
     .reduce((n, [, f]) => n + f.mock.calls.length, 0);
 
 describe("every action checks the signed-in user first (PA-01)", () => {
@@ -567,5 +581,81 @@ describe("files (PA-17..)", () => {
       ok: false,
       message: expect.stringContaining("only for approved"),
     });
+  });
+});
+
+describe("a PDF is queued for making only after a save (PA-PDF)", () => {
+  it("PA-PDF-1: saved: add (booking known), change (booking known), decide, add files, hide and correction (item known) each queue the PDF", async () => {
+    await addMoneyAction({
+      kind: "payment",
+      values: values(),
+      files: [],
+      idempotencyKey: KEY,
+    });
+    await updateWaitingAction({
+      kind: "payment",
+      id: ID,
+      expectedVersion: 2,
+      values: values({ amount: "1700" }),
+      reason: "Typed the wrong amount",
+    });
+    expect(m.schedulePdf.mock.calls).toEqual([[BOOKING], [BOOKING]]);
+    await decideAction({
+      kind: "refund",
+      id: ID,
+      expectedVersion: 2,
+      decision: "approve",
+    });
+    await addFilesAction({ kind: "payment", parentId: ID, files: [file()] });
+    await hideFileAction({
+      proofId: PROOF,
+      reason: "Wrong picture",
+      itemKind: "payment",
+      itemId: ID,
+    });
+    await addCorrectionAction({
+      kind: "refund",
+      parentId: ID,
+      reason: "Receipt found later",
+      files: [file()],
+    });
+    expect(m.schedulePdfForItem.mock.calls).toEqual([
+      ["refund", ID],
+      ["payment", ID],
+      ["payment", ID],
+      ["refund", ID],
+    ]);
+  });
+  it("PA-PDF-2: a refused action queues nothing", async () => {
+    m.addPayment.mockResolvedValue({ ok: false, message: "No." });
+    m.decidePayment.mockResolvedValue({ ok: false, message: "No." });
+    m.addProofs.mockResolvedValue({ ok: false, message: "No." });
+    await addMoneyAction({
+      kind: "payment",
+      values: values(),
+      files: [],
+      idempotencyKey: KEY,
+    });
+    await addMoneyAction({
+      kind: "payment",
+      values: values({ amount: "0" }),
+      files: [],
+      idempotencyKey: KEY,
+    });
+    await decideAction({
+      kind: "payment",
+      id: ID,
+      expectedVersion: 2,
+      decision: "approve",
+    });
+    await decideAction({
+      kind: "payment",
+      id: ID,
+      expectedVersion: 2,
+      decision: "reject",
+    });
+    await addFilesAction({ kind: "payment", parentId: ID, files: [file()] });
+    expect(m.schedulePdf).not.toHaveBeenCalled();
+    expect(m.schedulePdfForItem).not.toHaveBeenCalled();
   });
 });

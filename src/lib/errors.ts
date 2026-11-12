@@ -112,6 +112,11 @@ export const DB_ERROR_MESSAGES: Record<string, string> = {
   REVERSAL_EXCEEDS_REFUNDS:
     "This payment cannot be reversed because refunds depend on it. Reject or reverse the refunds first.",
   // files
+  // booking PDFs
+  PDF_STALE:
+    "The booking changed while the PDF was being made. It will be made again.",
+  PDF_VERSION_CONFLICT:
+    "Another PDF was made at the same moment. It will be tried again.",
   PROOF_REQUIRED:
     "A screenshot or receipt is required for UPI, card and cheque.",
   PROOF_LOCKED:

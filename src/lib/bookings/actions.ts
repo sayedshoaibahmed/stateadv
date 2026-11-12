@@ -16,6 +16,7 @@ import {
   upsertProvider,
 } from "@/lib/db/actions";
 import type { Result } from "@/lib/db/call";
+import { schedulePdf } from "@/lib/pdf/schedule";
 import { createClient } from "@/lib/supabase/server";
 import { todayIst } from "@/lib/dates";
 import { checkCancel, parseCharge } from "@/lib/bookings/cancel";
@@ -79,6 +80,7 @@ export async function createBookingAction(
   const r = await createBooking(payload, plan, p.data.idempotencyKey);
   if (!r.ok) return asFail(r);
   const d = r.data as { id: string; booking_code: string; duplicate?: boolean };
+  schedulePdf(d.id);
   revalidatePath("/bookings");
   return {
     ok: true,
@@ -169,6 +171,7 @@ export async function updateBookingAction(
   revalidatePath("/bookings");
   revalidatePath(`/bookings/${bookingId}`);
   const d = r.data as { version?: number };
+  schedulePdf(bookingId);
   return {
     ok: true,
     version: d.version ?? expectedVersion + 1,
@@ -189,6 +192,7 @@ export async function setStatusAction(input: unknown): Promise<ActionResult> {
   if (!r.ok) return asFail(r);
   revalidatePath("/bookings");
   revalidatePath(`/bookings/${p.data.bookingId}`);
+  schedulePdf(p.data.bookingId);
   return { ok: true, message: "The status was changed." };
 }
 
@@ -228,6 +232,7 @@ export async function cancelBookingAction(
   if (!r.ok) return asFail(r);
   revalidatePath("/bookings");
   revalidatePath(`/bookings/${v.bookingId}`);
+  schedulePdf(v.bookingId);
   return {
     ok: true,
     message:
@@ -281,6 +286,7 @@ export async function changeChargeAction(
   );
   if (!r.ok) return asFail(r);
   revalidatePath(`/bookings/${v.bookingId}`);
+  schedulePdf(v.bookingId);
   return { ok: true, message: "The cancellation charge was changed." };
 }
 
@@ -308,6 +314,7 @@ export async function changePlanAction(input: unknown): Promise<ActionResult> {
   );
   if (!r.ok) return asFail(r);
   revalidatePath(`/bookings/${v.bookingId}`);
+  schedulePdf(v.bookingId);
   return { ok: true, message: "The payment plan was changed." };
 }
 

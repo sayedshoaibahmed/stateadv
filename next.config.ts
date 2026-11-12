@@ -33,6 +33,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // the booking PDF fonts are read from disk at run time, so they must be shipped with the server functions
+  outputFileTracingIncludes: {
+    "/**": ["./src/lib/pdf/fonts/*.ttf"],
+  },
   reactStrictMode: true,
   cacheComponents: true,
   partialPrefetching: true,

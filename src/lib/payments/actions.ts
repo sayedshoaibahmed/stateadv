@@ -16,6 +16,7 @@ import {
   updateWaitingRefund,
 } from "@/lib/db/actions";
 import type { Result } from "@/lib/db/call";
+import { schedulePdf, schedulePdfForItem } from "@/lib/pdf/schedule";
 import { loadProviderChoices } from "@/lib/payments/data";
 import {
   buildMoneyPayload,
@@ -129,6 +130,7 @@ export async function addMoneyAction(input: unknown): Promise<
   revalidatePath("/refunds");
   revalidatePath("/approvals");
   revalidatePath(`/bookings/${values.bookingId}`);
+  schedulePdf(values.bookingId);
   return {
     ok: true,
     id: d.id,
@@ -180,6 +182,7 @@ export async function updateWaitingAction(
   revalidatePath(`/${kind}s/${id}`);
   revalidatePath("/approvals");
   revalidatePath(`/bookings/${values.bookingId}`);
+  schedulePdf(values.bookingId);
   return {
     ok: true,
     version: (r.data as { version?: number }).version ?? expectedVersion + 1,
@@ -219,6 +222,7 @@ export async function decideAction(
   revalidatePath("/refunds");
   revalidatePath(`/${kind}s/${id}`);
   revalidatePath("/dashboard");
+  schedulePdfForItem(kind, id);
   const status =
     decision === "approve"
       ? "approved"
@@ -251,6 +255,7 @@ export async function addFilesAction(input: unknown): Promise<ActionResult> {
   const r = await addProofs(p.data.kind, p.data.parentId, p.data.files);
   if (!r.ok) return asFail(r);
   revalidatePath(`/${p.data.kind}s/${p.data.parentId}`);
+  schedulePdfForItem(p.data.kind, p.data.parentId);
   return { ok: true, message: "The file was added." };
 }
 
@@ -273,6 +278,7 @@ export async function hideFileAction(input: unknown): Promise<ActionResult> {
   const r = await hideProof(p.data.proofId, p.data.reason.trim());
   if (!r.ok) return asFail(r);
   revalidatePath(`/${p.data.itemKind}s/${p.data.itemId}`);
+  schedulePdfForItem(p.data.itemKind, p.data.itemId);
   return {
     ok: true,
     message: "The file was hidden. It is kept in the history.",
@@ -307,6 +313,7 @@ export async function addCorrectionAction(
   );
   if (!r.ok) return asFail(r);
   revalidatePath(`/${p.data.kind}s/${p.data.parentId}`);
+  schedulePdfForItem(p.data.kind, p.data.parentId);
   return {
     ok: true,
     message:
