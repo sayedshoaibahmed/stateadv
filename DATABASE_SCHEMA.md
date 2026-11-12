@@ -592,7 +592,7 @@ Notes on decision 5:
 
 **Migration order (all new; 01–10 are the applied ones):** 11 account self-service · 12 account management · 13 master data functions (incl. the C/O functions) · 14 booking functions · 15 payment/refund functions · 16 refund limits · **17 configurable C/O (converts `agents_partners` → `co_entries`, `bookings.co_category` → `co_category_id` + copies, adds `stay_type_name`, drops the two old enum types)** · **18 four placeholder resorts**. Functions in 13 and 14 name the tables and columns of 17; PostgreSQL looks names up when a function runs, so the order is safe, and the whole sequence is applied from scratch in every test run.
 
-## 5c. M6: PDF pipeline functions (migration 23, 2026-11-12; written and tested locally, NOT applied to hosted)
+## 5c. M6: PDF pipeline functions (migration 23, 2026-11-12; applied to hosted and verified the same day)
 No table changed. `booking_pdf_versions`, `pdf_jobs` and the private bucket `booking-pdfs` (M2) are used as they are. All functions are SECURITY DEFINER with an empty `search_path`.
 | Function | Who may call | Purpose |
 |---|---|---|
@@ -604,4 +604,4 @@ No table changed. `booking_pdf_versions`, `pdf_jobs` and the private bucket `boo
 | `finish_pdf_jobs(booking, up_to, ok, error)` | authenticated, service role | closes the open jobs up to the highest id seen. **Service role:** pending, running or failed jobs, its own error text (cut to 300). **A person:** only pending or failed jobs (never running); "done" only when the latest registered version's hash equals the hash recomputed now, else 0 and the jobs stay open; a failure always stores "The PDF could not be made." |
 | `claim_pdf_jobs(max)` | service role only | `FOR UPDATE SKIP LOCKED`; pending or failed jobs with fewer than 5 attempts, or running longer than 15 minutes; at most 50 |
 | `request_pdf_regeneration(booking)` | authenticated | queues a job "regenerate requested" |
-Expected counts on hosted after migration 23: 107 functions (+8 over 99), 53 authenticated-callable (+5 over 48), 0 anon/PUBLIC. Not verified on hosted (not applied).
+Verified on hosted after migration 23 (HOSTED_VERIFICATION 0n): 107 functions (+8 over 99), 53 authenticated-callable (+5 over 48), 106 service-role-callable, 0 anon/PUBLIC; seven of the eight are SECURITY DEFINER, `pdf_hash` is SECURITY INVOKER; all have an empty `search_path`; tables, policies and triggers unchanged (21 / 26 / 105). No authenticated call of these functions has been made on hosted yet.

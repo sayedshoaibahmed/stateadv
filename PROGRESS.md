@@ -8,7 +8,7 @@ Last updated: 2026-11-11
 ### Where each thing has been verified
 | Level | State |
 |---|---|
-| **Hosted dev project** (PostgreSQL 17.11) | Migrations **01–22 applied and verified** against a local rebuild (HOSTED_VERIFICATION 0h, 0i, 0k, 0l and 0m; 019 to 022 on 2026-11-12): 99 functions, 48 callable by signed-in users, 0 by anon or PUBLIC, 21 tables, 26 policies, 105 triggers, 4 placeholder resorts, 4 C/O categories, reference data intact. One active Owner account (password changed), no other users, no business data. Signup disabled. |
+| **Hosted dev project** (PostgreSQL 17.11) | Migrations **01–23 applied and verified** against a local rebuild (HOSTED_VERIFICATION 0h, 0i, 0k, 0l, 0m and 0n; 019 to 023 on 2026-11-12): 107 functions, 53 callable by signed-in users, 106 by the service role, 0 by anon or PUBLIC (99 / 48 before migration 23), 21 tables, 26 policies, 105 triggers, 4 placeholder resorts, 4 C/O categories, reference data intact. One active Owner account (password changed), no other users, no business data. Signup disabled. |
 | **GitHub** | `origin/main` = `91a4d13`; all four CI jobs passed (lint/typecheck/test/build, secret scan, PostgreSQL 17 database tests, PostgreSQL 17 as a non-superuser; reported by the owner). Only documentation changes are uncommitted. |
 | **Local, real PostgreSQL 17.11** (throw-away server) | **355** database tests + **18** simultaneous-request tests pass, in each of two modes: superuser, and the hosted rehearsal (migrations run as a plain role named `postgres`). |
 | **Local, PGlite** | **508** tests pass (18 concurrency tests skipped there). |
@@ -58,7 +58,7 @@ M2: essential targeted security and financial-rule checks only. M3, M4, M6, M7, 
 | M3 | UI and Dashboard | 🟡 Built, committed (`a4ea2de`, comment fix `714a514`, both pushed); migration 20 (dashboard functions) **applied to hosted and verified 2026-11-12**. Open: no real authenticated call tested on hosted; page not yet viewed in a browser against hosted | Browser QA stays deferred (after M8; comprehensive QA in M9) |
 | M4 | Resort, Guest and Booking Management | 🟡 Built, committed (`0ec47fa`, pushed, CI green); migration 21 (booking and guest lists) **applied to hosted and verified 2026-11-12**. Open: no real authenticated call tested on hosted; screens not yet viewed in a browser against hosted | Browser QA stays deferred (after M8; final QA in M9) |
 | M5 | Payment Management and Approvals | 🟡 Built, committed (`1eb65b5`, pushed, CI run #17 passed all four jobs, reported by the owner); migration 22 (payment and refund lists) **applied to hosted and verified 2026-11-12**. Open: no authenticated call of the two functions tested on hosted; the screens, uploads and approvals not yet tried in a browser | Browser QA stays deferred (after M8; final QA in M9, checklist below) |
-| M6 | Automatic PDF Generation | 🟡 Built locally, **not committed, not pushed**. Migration 23 (PDF pipeline functions) written, tested locally, **NOT applied to hosted**. No browser test; no CI run yet | Committing, pushing and applying migration 23 each need a separate approval |
+| M6 | Automatic PDF Generation | 🟡 Built, committed (`79f956a`, security fix `5d8be32`, docs `a1c598a`, all pushed; CI run #19 and #20 passed all four jobs, confirmed by the owner); migration 23 (PDF pipeline functions) **applied to hosted and verified 2026-11-12**. Open: no authenticated call, real upload, signed download, logo fetch, Vercel cron or `after()` check yet; no browser test | Browser QA stays deferred (after M8; final QA in M9, checklist below) |
 | M7 | Calendar and Historical Records | ⚪ Not started | No |
 | M8 | Reports and Collections | ⚪ Not started | No |
 | M9 | Testing and Security | ⚪ Not started | No |
@@ -202,8 +202,8 @@ These are NOT done; none may be reported as passed until they are run in a real 
 - [ ] Layouts at 360, 768 and 1280 pixels for all of the above.
 
 
-## M6: Booking PDFs and Document Management (built locally, not committed)
-**Status, plainly:** implemented and tested locally. Not committed, not pushed, not CI-verified, **migration 23 not applied to hosted**, not deployed, not browser-tested.
+## M6: Booking PDFs and Document Management (committed and pushed; migration 23 applied to hosted 2026-11-12)
+**Status, plainly:** implemented, tested locally, committed and pushed (`79f956a`, `5d8be32`, `a1c598a`; GitHub Actions confirmed by the owner). **Migration 23 is applied to hosted and verified** (below). Not deployed, not browser-tested. (The wording of the rest of this section is from before the apply and is kept as the record.)
 
 **Reused, not rebuilt:** tables `booking_pdf_versions` and `pdf_jobs`, the private bucket `booking-pdfs` and its storage rule (M2); `booking_financials` (D1, unchanged); the audit trail. No migration 01-22 was changed.
 
@@ -215,14 +215,35 @@ These are NOT done; none may be reported as passed until they are run in a real 
 
 **Tests:** PGlite PDB-01..26, E2E-01..08 (real PDF rendered from real DB functions); PG17 superuser and restricted: same plus CON-25/26/27 concurrency and PDB-27..33; unit PM, PR, PP, PDFA, PV6, PDFS. Full run: ESLint, tsc, Prettier clean; PGlite suite 1025 passed (26 skipped = PG17-only); PG17 superuser 522 passed, restricted 522 passed, concurrency 26 passed; `check:migrations` 23 files; secret scan clean; bundle scan clean (no react-pdf in browser files); `npm audit --omit=dev` 0 vulnerabilities; production build succeeds with the font files traced. Mutation tests for M6: none (per plan: ordinary tests only).
 
-**Security correction (2026-11-12, second local commit):** `finish_pdf_jobs` now enforces in the database that a person can finish only pending or failed jobs, can say "done" only when the latest registered version matches the booking now, and always stores the fixed failure sentence; the retry job (service role) keeps its running-job and error-text rights. See SECURITY 18a, MIGRATION_REVIEW 20a, tests PDB-27..33 and CON-27. Latest local results: PGlite 1032 passed / 27 skipped; PG17 superuser 529; restricted 529; concurrency 27. Still local only: not pushed, not applied to hosted, not browser-tested.
+**Security correction (2026-11-12, second local commit):** `finish_pdf_jobs` now enforces in the database that a person can finish only pending or failed jobs, can say "done" only when the latest registered version matches the booking now, and always stores the fixed failure sentence; the retry job (service role) keeps its running-job and error-text rights. See SECURITY 18a, MIGRATION_REVIEW 20a, tests PDB-27..33 and CON-27. Latest local results: PGlite 1032 passed / 27 skipped; PG17 superuser 529; restricted 529; concurrency 27. At that time still local only (since pushed, and migration 23 applied to hosted; see below). Not browser-tested.
 
 **Limitations, stated plainly:**
 1. No browser test; no visual inspection of the rendered PDF (no PDF-to-image tool installed). Layout is checked through text extraction and parsing only.
 2. A real signed-URL download, a real logo fetch from the private `resort-logos` bucket, Vercel cron and font tracing on Vercel, and `after()` behaviour in production are not exercised outside unit and database tests.
 3. WEBP logos are skipped (PNG and JPEG only).
-4. Migration 23 is not on hosted, so on hosted the PDFs tab would show "No PDF yet" and generation would fail until it is applied (needs a fresh export, the exact SQL shown, preflight and a separate approval).
+4. (Before the apply: migration 23 was not on hosted.) It is now applied, but the app is not deployed, so the PDF screens and the retry job do not run anywhere against hosted yet.
 5. A version number can have a gap if a run uploads and then fails to register; the retry job overwrites the orphan file (system rights only).
+
+## M6: migration 23 applied to hosted (2026-11-12)
+Migration `20261111000023_pdf_pipeline.sql` (eight functions), commit `a1c598a22895ed2a85ea3c141f661a6edd462d47`, SHA-256 `7d313e5c77217d43079552055fb78813909cf7cf55addd6873348334d756566f`, was applied alone, after the owner's explicit approval, preflight P1-P9, a dry run listing only that file and a fresh verified safety export (`stateadv-backups/hosted-export-2026-11-12T09-47-35`, outside the repository, no credentials, all 4 manifest hashes match), with `push020.mjs apply` (`supabase db push --skip-vault --yes`): exit 0, only migration 023. Details: `supabase/HOSTED_VERIFICATION.md` section 0n.
+
+**Verified afterwards (read-only):**
+| Metric | Result |
+|---|---|
+| Migrations applied | 23 (001-023), 023 once, 01-22 unchanged |
+| Functions in `public` | 107 (was 99) |
+| Callable by signed-in users | 53 (was 48) |
+| Callable by the service role | 106 |
+| Callable by anon / PUBLIC | 0 / 0 |
+| Tables / policies / triggers | 21 / 26 / 105 (unchanged) |
+| PDF versions / PDF jobs | 0 / 0 |
+| Function bodies equal to the migration source | 8 of 8 |
+| Catalog comparison with a local rebuild | HOSTED STATE EQUALS THE LOCAL REBUILD, 14 of 14 categories |
+| Existing table row counts | unchanged (equal to the safety export) |
+
+All eight new functions have an empty `search_path`; seven are SECURITY DEFINER and `pdf_hash` is SECURITY INVOKER. The `finish_pdf_jobs` security correction is present in the hosted definition.
+
+**Not done, so not claimed:** no authenticated call of the PDF functions on hosted; no real PDF generated or uploaded; Storage `size` / `mimetype` metadata compatibility not checked; no signed download or expiry; no logo fetch from `resort-logos`; no Vercel cron run and `CRON_SECRET` not configured; no `after()` check in production; no browser test. They stay on the M9 checklist below or belong to deployment verification. Safety-export limitations stand (no Auth user records, no Storage file contents, not a complete disaster-recovery backup), and `verify-export.mjs` still prints its known `22/10` warning (hard-coded 10 migrations; all 22 were checked independently, 22 of 22 equal git).
 
 ### M9 browser QA checklist for M6 (NOT done)
 - [ ] Generate a PDF from a real booking; check the guest, stay, resort, charges, payments, refunds, totals and balance against the screen.
