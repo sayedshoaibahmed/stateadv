@@ -212,5 +212,27 @@ Adds five read-only functions (`dashboard_range`, `dashboard_summary`, `dashboar
 
 Nothing else happened: no other migration, no user created, no password or role changed, no deployment.
 
-## 0l. Migration 21 (booking and guest lists): NOT applied to hosted
-Adds three functions: `booking_list`, `guest_list`, `like_safe`. Read-only; SECURITY INVOKER (`like_safe` is a plain SQL helper); empty search_path; revoked from PUBLIC/anon; granted to authenticated; no tables, data, policies or triggers change. Expected after apply: history 21; 21 tables; **97 functions, 46 callable by signed-in users, 0 by anon/PUBLIC**; 26 policies; 105 triggers; data unchanged. Procedure when approved: fresh safety export, `npm run preflight:hosted -- --pending=20261111000021`, dry run listing only that file, apply, then `npm run catalog:local` and `catalog:compare`, plus the read-only checks used for migration 20 (definitions, SECURITY INVOKER, grants, anonymous refusal).
+## 0l. Migration 21 (booking and guest lists): APPLIED to hosted 2026-11-12 and verified
+Adds three functions: `booking_list`, `guest_list`, `like_safe`. Read-only; `booking_list` and `guest_list` are SECURITY INVOKER (`like_safe` is a plain SQL helper); empty search_path; revoked from PUBLIC/anon; granted to authenticated; no tables, data, policies or triggers change.
+
+**Before:** commit `0ec47fa` on `origin/main` equal to the working tree (CI green on all four jobs, reported by the owner); safety export `stateadv-backups/hosted-export-2026-11-12T04-47-41` (outside the repository, no credentials, all 4 manifest SHA-256 hashes match, re-checked immediately before the apply; compared with the live database: functions 94, constraints 191, indexes 84, triggers 105, policies 26, columns 314 by per-item hash, row counts of 21 tables, reference tables, 18 audit rows, history 20 rows; `data.json` and `data-restore.sql` byte-identical to the export taken before migration 20; the tool's own check "recorded SQL equals git" prints FAIL only because it still expects exactly 10 migrations, while all 20 match); `npm run preflight:hosted -- --pending=20261111000021` PASSED P1-P9, run twice; `db push --dry-run` listed exactly `20261111000021_booking_guest_lists.sql`.
+
+**Applied** with `supabase db push --skip-vault --yes` (credentials redacted from all output): exit 0, no error, only migration 021.
+
+**After (all read-only):**
+- migration history exactly 20261111000001 to 20261111000021 (21 rows)
+- exactly the three new functions; their bodies equal the source in the migration file
+- `booking_list` and `guest_list` SECURITY INVOKER (no function is SECURITY DEFINER), `booking_list` and `guest_list` STABLE, `like_safe` IMMUTABLE, all with `search_path=""`
+- `authenticated` may execute all three; `anon` and PUBLIC may execute none
+- **97 functions in `public`, 46 callable by signed-in users, 0 by anon, 0 by PUBLIC**; 21 tables; 26 policies; 105 triggers (public plus the one on `auth.users`)
+- `npm run catalog:local` (throw-away PostgreSQL 17, migrations 1..21) and `npm run catalog:compare`: **hosted state equals the local rebuild** in every category: history 21, columns 314, constraints 191, indexes 84, triggers 105, policies 26, functions 97, function privileges 97, table privileges 183, column privileges 303, RLS 21, enums 8, views 3, relations 30. The rebuild catalog is `stateadv-backups/catalog-after-021.json`.
+- row counts of all 21 tables equal the safety export; content of resorts, stay_types, payment_providers, co_categories and user_profiles equals it; audit_logs still 18 rows (max id 18); one active Owner account
+- **D1 unchanged:** the live `booking_financials` still reads `GREATEST(due_paise - (approved_paise + waiting_paise - refunds_approved_paise), 0)` for Pending and `GREATEST(due_paise - (approved_paise - refunds_approved_paise), 0)` for Verified Remaining; neither refers to waiting refunds
+- **Guest Pending:** the live `guest_list` has `coalesce(sum(f.pending_paise), 0)` with no status filter, so cancelled and no-show bookings (an unpaid charge is their Amount Due) are included; `booking_list` takes `pending_paise` from the same view column
+- anonymous calls (publishable key, no login) to all three functions are refused: HTTP 401 permission denied
+
+One verification run hit a transient connection timeout to the hosted database and was repeated; two lines of the first run reported FAIL because the script's text pattern did not allow for the view's `0::bigint` formatting, and the formulas were then checked explicitly (above).
+
+**Not done, so not claimed:** (1) no real *authenticated* call of `booking_list` or `guest_list` against hosted (needs a login; hosted has no bookings, so the result would be empty): the guest-Pending behaviour on live data is not shown, only by the live definitions and the local tests; (2) the M4 screens have not been viewed in a browser against hosted. Browser QA stays deferred (after M8; final QA in M9).
+
+Nothing else happened: no other migration, no user created, no password or role changed, no deployment.

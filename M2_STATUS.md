@@ -6,7 +6,7 @@ M2 is **one milestone**. This is a working audit, generated from the data in the
 |---|---|
 | Last updated | 2026-11-11 |
 | Branch | `main` = `origin/main` at `91a4d13` (CI green on all four jobs; reported by the owner). The only uncommitted changes are documentation updates recording the hosted apply of migration 19 |
-| Hosted dev database | PostgreSQL 17.11; **migrations 01-20 applied and verified (019 and 020 on 2026-11-12; 020 is the M3 dashboard functions, see PROGRESS.md)**; the first Owner exists (password changed); no other user and no business data |
+| Hosted dev database | PostgreSQL 17.11; **migrations 01-21 applied and verified (019, 020 and 021 on 2026-11-12; 020 is the M3 dashboard functions and 021 the M4 booking and guest lists, see PROGRESS.md)**; the first Owner exists (password changed); no other user and no business data |
 | Hosted Auth (read-only) | signup disabled; email login only; **no Owner account exists** |
 
 ## Headline

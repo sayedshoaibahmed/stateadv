@@ -419,7 +419,7 @@ Existing tests that call protected actions directly (ACM-03/10/13/15/21/24, DEC-
 | SEC-04 | `tests/db/schema-security.test.ts` | five new functions on the exact allow-list (43 callable by signed-in users, 94 functions) |
 Not done (stated honestly): authenticated screens were not opened in a browser (Playwright browsers not installed; a second login must not be created), so 360/768/1280 layouts are verified by markup tests and the production build only. Full browser QA is the deferred M2/M9 pass.
 
-## 2.22 M4: guests, bookings, search (tests run locally; migration 21 not applied to hosted)
+## 2.22 M4: guests, bookings, search (tests run locally; migration 21 applied to hosted 2026-11-12, see HOSTED_VERIFICATION 0l)
 | Tests | File | What they prove |
 |---|---|---|
 | BKL-01..23 (23) | `tests/db/booking-lists.test.ts` | `booking_list` and `guest_list` on five hand-calculated bookings (two resorts, one cancelled with a charge and a refund due, one adjusted, one with a waiting payment): rows, order, every money figure and the same figures as `booking_financials`; paging and totals; search by Booking ID, name, C/O name and mobile (any format; under 3 digits never matches; `%`, `_`, `\` and SQL text are plain letters); every filter and their combination; a waiting refund counts as "has waiting" and changes no figure; refusals for anonymous, signed-out, unknown, service-role and switched-off callers; Owners and Managers see the same rows |
@@ -432,3 +432,5 @@ Not done (stated honestly): authenticated screens were not opened in a browser (
 | VW-01..22 | `tests/unit/booking-views.test.ts` | list and booking page screens, table/card duality, banners, placeholders, guest screens, the form, payment apps |
 | SEC-04 | `tests/db/schema-security.test.ts` | the three new functions are on the exact allow-list (46 callable by signed-in users, 97 functions) |
 The earlier AMT-*, CO-*, BID-*, PLN-*, EDT-* and CAN-* database tests (M2) are unchanged. **E2E in a browser** for the same flows is not done: it waits for the deferred browser QA (after M8, final QA in M9).
+
+On hosted (read-only, 2026-11-12): definitions, SECURITY INVOKER, search_path, grants, counts (97 / 46 / 0), catalog equality and anonymous refusal of the three functions were checked. **Not done:** an authenticated call against hosted, and E2E or visual checks of the M4 screens (deferred browser QA: after M8, final QA in M9).

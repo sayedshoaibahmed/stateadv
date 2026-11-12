@@ -1,6 +1,6 @@
 # M2 — Database migration review guide
 
-**Status (updated 2026-11-12): migrations 01–20 are APPLIED to the dev Supabase project and verified** (evidence: `HOSTED_VERIFICATION.md` sections 0h, 0i and 0k). The text below was written before 11–18 were applied and is kept as the review record; where it says "not applied", read "applied on 2026-11-11 after the owner's approval".
+**Status (updated 2026-11-12): migrations 01–21 are APPLIED to the dev Supabase project and verified** (evidence: `HOSTED_VERIFICATION.md` sections 0h, 0i, 0k and 0l). The text below was written before 11–18 were applied and is kept as the review record; where it says "not applied", read "applied on 2026-11-11 after the owner's approval".
 
 **Updated 2026-11-11:** your decisions O7 (verified own-email change), Q9a (correction files) and D5 (reversal protection) are now in the migration files. Section 10 shows exactly what changed, file by file. Sections 1-9 describe the current files.
 
@@ -486,7 +486,9 @@ Read-only aggregate functions for the dashboard. All SECURITY INVOKER, so row-le
 
 Applied alone after preflight P1-P9, a dry run and a verified safety export. Hosted afterwards equals a local rebuild in every catalog category (94 functions, 43 callable by signed-in users, 0 by anon/PUBLIC). Not yet tested: a real authenticated call, and the page against hosted in a browser.
 
-## 18. Migration 21: booking and guest lists (local only, awaiting approval)
+## 18. Migration 21: booking and guest lists, APPLIED to hosted 2026-11-12 and verified (HOSTED_VERIFICATION 0l)
 `booking_list(...)` returns one page (at most 100 rows) of bookings with their money figures from `booking_financials` and the total number of matches; `guest_list(...)` returns guests with their booking count, last check-in and money totals; `like_safe(text)` makes search text safe for LIKE. Security: SECURITY INVOKER (row-level security of every table still applies), refuse a caller who is not an active user (NOT_ALLOWED), no dynamic SQL (every filter is a parameter), search text escaped, filters are `NULL` = off. Definitions: Pending is `booking_financials.pending_paise` unchanged (rule D1: the amount due less approved AND waiting payments, plus approved refunds, never below zero; waiting refunds are ignored). It is **not** Verified Remaining, which counts approved money only; "Has Waiting" also counts waiting refunds; "Adjusted" means the final amount was changed by hand; the date range filters by IST calendar date. Tests BKL-01..23. No existing object changes.
 
 **Pending is not Verified Remaining.** Pending = max(Due − (Approved + Waiting − Approved refunds), 0): a payment that is recorded but still waiting already lowers it. Verified Remaining = max(Due − (Approved − Approved refunds), 0): only approved money lowers it. Every screen shows Pending from the same view column (booking list, booking page, guest page and totals, dashboard cards and resort table). The guest totals sum it over ALL of a guest's bookings, so an unpaid cancellation or no-show charge (the Amount Due of that booking) is included, exactly as on the booking page.
+
+Applied alone after preflight P1-P9, a dry run and a verified safety export. Hosted afterwards equals a local rebuild in every catalog category (97 functions, 46 callable by signed-in users, 0 by anon/PUBLIC); the three function bodies equal the migration source; `booking_financials` (rule D1) was not touched and guest Pending sums over all bookings. Not yet tested: a real authenticated call, and the screens in a browser against hosted.
