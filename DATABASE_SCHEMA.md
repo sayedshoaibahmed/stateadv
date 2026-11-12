@@ -604,4 +604,4 @@ No table changed. `booking_pdf_versions`, `pdf_jobs` and the private bucket `boo
 | `finish_pdf_jobs(booking, up_to, ok, error)` | authenticated, service role | closes the open jobs up to the highest id seen. **Service role:** pending, running or failed jobs, its own error text (cut to 300). **A person:** only pending or failed jobs (never running); "done" only when the latest registered version's hash equals the hash recomputed now, else 0 and the jobs stay open; a failure always stores "The PDF could not be made." |
 | `claim_pdf_jobs(max)` | service role only | `FOR UPDATE SKIP LOCKED`; pending or failed jobs with fewer than 5 attempts, or running longer than 15 minutes; at most 50 |
 | `request_pdf_regeneration(booking)` | authenticated | queues a job "regenerate requested" |
-Expected counts on hosted after migration 23: 106 functions (+7 over 99), 53 authenticated-callable (+5 over 48), 0 anon/PUBLIC. Not verified on hosted (not applied).
+Expected counts on hosted after migration 23: 107 functions (+8 over 99), 53 authenticated-callable (+5 over 48), 0 anon/PUBLIC. Not verified on hosted (not applied).

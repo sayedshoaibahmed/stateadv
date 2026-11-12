@@ -261,4 +261,4 @@ Adds two functions: `payment_list`, `refund_list`. Read-only; SECURITY INVOKER; 
 Nothing else happened: no other migration, no user created, no password or role changed, no deployment, no change to authentication or storage settings.
 
 ## 0n. Migration 23 (PDF pipeline): NOT APPLIED to hosted
-Nothing about migration 23 has been done on hosted. When approved and applied, verify read-only: 106 functions, 48+5 = 53 authenticated-callable, 0 anon/PUBLIC, `claim_pdf_jobs` executable by the service role only, catalog equals the local rebuild in all 14 categories, tables/policies/triggers unchanged (21 / 26 / 105), audit rows unchanged, no bookings or PDFs created.
+Nothing about migration 23 has been done on hosted. When approved and applied, verify read-only: 107 functions, 48+5 = 53 authenticated-callable, 0 anon/PUBLIC, `claim_pdf_jobs` executable by the service role only, catalog equals the local rebuild in all 14 categories, tables/policies/triggers unchanged (21 / 26 / 105), audit rows unchanged, no bookings or PDFs created.
