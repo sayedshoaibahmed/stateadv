@@ -81,7 +81,7 @@ Needs from the owner: GitHub access (private repo), a Supabase account for a **f
 - **Status (2026-11-12):** built, committed (`1eb65b5`) and pushed; migration 22 applied to hosted and verified (read-only); browser E2E and authenticated hosted calls wait for the deferred QA (M9 checklist in PROGRESS.md).
 
 ## M6 — Automatic PDF Generation
-**Status 2026-11-12:** built and tested locally; not committed; migration 23 not applied to hosted; no browser test (see PROGRESS).
+**Status 2026-11-12:** built, committed (`79f956a`, security fix `5d8be32`, docs `a1c598a`, `45c2282`) and pushed; GitHub Actions passed (confirmed by the owner); migration 23 (`20261111000023_pdf_pipeline.sql`, eight functions) **applied to hosted and verified** (107 functions, 53 callable by signed-in users, 106 by the service role, 0 by anon/PUBLIC; 21 / 26 / 105 tables, policies and triggers unchanged; catalog equals a local rebuild in all 14 categories; HOSTED_VERIFICATION 0n). Not yet tested: authenticated calls of the PDF functions on hosted, real PDF generation and upload, Storage metadata compatibility, signed downloads and expiry, the logo fetch, Vercel cron and `CRON_SECRET`, `after()` in production, and any browser use; these stay on the M9 checklist (see PROGRESS).
 1. Template (all PRD §5.14 content, Noto Sans ₹, logo, disclaimer, version).
 2. Job processing after commit, content-hash de-duplication, version registration.
 3. Cron retry + Regenerate button. PDFs tab with downloads.
