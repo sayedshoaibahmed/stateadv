@@ -211,3 +211,6 @@ Adds five read-only functions (`dashboard_range`, `dashboard_summary`, `dashboar
 **Not done, so not claimed:** (1) no real *authenticated* call of the dashboard functions against hosted (needs a login; hosted has no bookings or payments, so the result would be zeros); (2) the dashboard page has not been visually verified in a browser against hosted. Browser QA stays deferred (after M8; comprehensive QA in M9).
 
 Nothing else happened: no other migration, no user created, no password or role changed, no deployment.
+
+## 0l. Migration 21 (booking and guest lists): NOT applied to hosted
+Adds three functions: `booking_list`, `guest_list`, `like_safe`. Read-only; SECURITY INVOKER (`like_safe` is a plain SQL helper); empty search_path; revoked from PUBLIC/anon; granted to authenticated; no tables, data, policies or triggers change. Expected after apply: history 21; 21 tables; **97 functions, 46 callable by signed-in users, 0 by anon/PUBLIC**; 26 policies; 105 triggers; data unchanged. Procedure when approved: fresh safety export, `npm run preflight:hosted -- --pending=20261111000021`, dry run listing only that file, apply, then `npm run catalog:local` and `catalog:compare`, plus the read-only checks used for migration 20 (definitions, SECURITY INVOKER, grants, anonymous refusal).

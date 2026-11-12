@@ -6,22 +6,24 @@ import { Search } from "lucide-react";
 import { showsResortFilter } from "@/lib/nav";
 
 /**
- * Search box in the top bar. Bookings do not exist yet, so for now it only says so (stub); it will search guest name,
- * mobile number and booking number once bookings are added.
+ * Search box in the top bar (M4). It opens the Search page with what was typed: bookings (Booking ID, guest name,
+ * mobile number, C/O name) and guests. Extra spaces are removed; an empty box does nothing.
  */
 export function GlobalSearch() {
-  const [shown, setShown] = useState(false);
+  const router = useRouter();
+  const [text, setText] = useState("");
   return (
     <form
       role="search"
       className="relative min-w-0 flex-1 sm:max-w-sm"
       onSubmit={(e) => {
         e.preventDefault();
-        setShown(true);
+        const q = text.replace(/\s+/g, " ").trim().slice(0, 100);
+        if (q !== "") router.push("/search?q=" + encodeURIComponent(q));
       }}
     >
       <label htmlFor="global-search" className="sr-only">
-        Search bookings
+        Search bookings and guests
       </label>
       <Search
         className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -30,18 +32,12 @@ export function GlobalSearch() {
       <input
         id="global-search"
         type="search"
+        value={text}
+        maxLength={100}
         placeholder="Search guest, mobile or booking no."
-        onChange={() => setShown(false)}
+        onChange={(e) => setText(e.target.value)}
         className="h-11 w-full rounded-lg border bg-background pr-3 pl-9 text-base sm:text-sm"
       />
-      {shown ? (
-        <p
-          role="status"
-          className="absolute top-12 left-0 z-50 w-full rounded-lg border bg-popover p-3 text-sm shadow-md"
-        >
-          Search will work once bookings are added.
-        </p>
-      ) : null}
     </form>
   );
 }

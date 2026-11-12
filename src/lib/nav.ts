@@ -48,14 +48,14 @@ export const MENU: readonly NavItem[] = [
     label: "Bookings",
     href: "/bookings",
     icon: "bookings",
-    ready: false,
+    ready: true,
   },
   {
     key: "add",
     label: "Add Booking",
     href: "/bookings/new",
     icon: "add",
-    ready: false,
+    ready: true,
   },
   {
     key: "approvals",
@@ -91,7 +91,7 @@ export const MENU: readonly NavItem[] = [
     label: "Guests",
     href: "/guests",
     icon: "guests",
-    ready: false,
+    ready: true,
   },
   {
     key: "reports",

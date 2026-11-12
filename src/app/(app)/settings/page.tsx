@@ -26,6 +26,11 @@ const AREAS = [
     title: "Stay types",
     text: "Add, rename and switch off the kinds of stay you offer.",
   },
+  {
+    href: "/settings/payment-apps",
+    title: "Payment apps",
+    text: "Add, rename and switch off the UPI and card apps used when payments are recorded.",
+  },
 ];
 
 export default async function SettingsPage() {

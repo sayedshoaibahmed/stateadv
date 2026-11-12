@@ -926,4 +926,46 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
       w.db.q(`select public.reauth_begin($1, 'set_active', $2)`, [a, w.owner]),
     );
   });
+  it("CON-21 (M4): a check-in and a cancellation of the same booking version at the same moment: exactly one wins, and a cancelled booking is never checked in", async () => {
+    const b = await newBooking();
+    const res = await parallel([w.manager, w.manager2], (c, i) =>
+      i === 0
+        ? c.query(
+            `select public.set_booking_status($1, 1, 'checked_in', null) as r`,
+            [b],
+          )
+        : c.query(
+            `select public.cancel_booking($1, 1, 'cancelled', null, 0, 'Guest cancelled', null, '[]'::jsonb) as r`,
+            [b],
+          ),
+    );
+    expect(res.filter((r) => r.ok)).toHaveLength(1);
+    for (const r of res) if (!r.ok) expect(r.error).toContain("STALE_RECORD");
+    const [{ status }] = await mq<{ status: string }>(
+      `select status from public.bookings where id = $1`,
+      [b],
+    );
+    expect(["checked_in", "cancelled"]).toContain(status);
+    const pc = await mq<{ n: string }>(
+      `select count(*)::text n from public.payment_plan_revisions where booking_id = $1`,
+      [b],
+    );
+    expect(Number(pc[0].n)).toBe(status === "cancelled" ? 2 : 1);
+  });
+
+  it("CON-22 (M4): the same Cancel pressed by two people at once cancels once; the plan has one cancellation version", async () => {
+    const b = await newBooking();
+    const res = await parallel([w.manager, w.manager2], (c) =>
+      c.query(
+        `select public.cancel_booking($1, 1, 'cancelled', null, 0, 'Guest cancelled', null, '[]'::jsonb) as r`,
+        [b],
+      ),
+    );
+    expect(res.filter((r) => r.ok)).toHaveLength(1);
+    const rows = await mq<{ source: string }>(
+      `select source from public.payment_plan_revisions where booking_id = $1 order by revision_no`,
+      [b],
+    );
+    expect(rows.map((r) => r.source)).toEqual(["created", "cancellation"]);
+  });
 });

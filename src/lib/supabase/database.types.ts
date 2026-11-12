@@ -1691,6 +1691,46 @@ export type Database = {
         Args: { p_action: string; p_reason: string; p_target: string };
         Returns: undefined;
       };
+      booking_list: {
+        Args: {
+          p_adjusted?: boolean;
+          p_co_category?: number;
+          p_date_type?: string;
+          p_from?: string;
+          p_has_pending?: boolean;
+          p_has_waiting?: boolean;
+          p_limit?: number;
+          p_method?: Database["public"]["Enums"]["pricing_method"];
+          p_offset?: number;
+          p_q?: string;
+          p_refund_due?: boolean;
+          p_resort?: string;
+          p_status?: Database["public"]["Enums"]["booking_status"];
+          p_to?: string;
+        };
+        Returns: {
+          adjusted: boolean;
+          amount_due_paise: number;
+          approved_paise: number;
+          booking_code: string;
+          booking_date: string;
+          booking_id: string;
+          check_in_at: string;
+          check_out_at: string;
+          co_category_name: string;
+          co_name: string;
+          guest_id: string;
+          guest_mobile: string;
+          guest_name: string;
+          pax: number;
+          pending_paise: number;
+          refund_due_paise: number;
+          resort_id: string;
+          status: Database["public"]["Enums"]["booking_status"];
+          total_rows: number;
+          waiting_paise: number;
+        }[];
+      };
       booking_overdue: {
         Args: { p_as_of?: string };
         Returns: {
@@ -1856,6 +1896,20 @@ export type Database = {
         };
         Returns: Json;
       };
+      guest_list: {
+        Args: { p_limit?: number; p_offset?: number; p_q?: string };
+        Returns: {
+          bookings: number;
+          email: string;
+          full_name: string;
+          guest_id: string;
+          last_check_in: string;
+          mobile: string;
+          net_collection_paise: number;
+          pending_paise: number;
+          total_rows: number;
+        }[];
+      };
       hide_proof: {
         Args: { p_id: string; p_reason: string };
         Returns: undefined;
@@ -1881,6 +1935,7 @@ export type Database = {
         };
         Returns: undefined;
       };
+      like_safe: { Args: { p_text: string }; Returns: string };
       money_position: {
         Args: { p_booking: string };
         Returns: {

@@ -133,7 +133,7 @@ export function StatCards({ s, period }: { s: Summary; period: string }) {
       </Card>
       <Card
         title="Pending Amount"
-        info="Money still to be received on bookings, as of right now: the final amount less approved payments plus approved refunds."
+        info="The amount due less approved and waiting payments, plus approved refunds."
         hint="As of today"
       >
         <Money paise={s.pendingPaise} tone="pending" />
@@ -349,8 +349,14 @@ export function RecentBookings({
           className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"
         >
           <span>
-            <span className="font-medium">{b.guest}</span> · {b.code} ·{" "}
-            {names.get(b.resortId) ?? "Resort"}
+            <span className="font-medium">{b.guest}</span> ·{" "}
+            <Link
+              href={"/bookings/" + b.id}
+              className="underline underline-offset-4"
+            >
+              {b.code}
+            </Link>{" "}
+            · {names.get(b.resortId) ?? "Resort"}
           </span>
           <span className="flex items-center gap-2">
             <DateText value={b.checkIn} />
