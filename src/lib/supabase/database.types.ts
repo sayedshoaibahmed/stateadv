@@ -1769,6 +1769,73 @@ export type Database = {
         Args: { p_idem: string; p_payload: Json; p_plan: Json };
         Returns: Json;
       };
+      dashboard_alerts: {
+        Args: { p_from?: string; p_resort?: string; p_to?: string };
+        Returns: {
+          backup_at: string;
+          backup_old: boolean;
+          failed_pdfs: number;
+          overdue_bookings: number;
+          overdue_paise: number;
+          self_approved: number;
+          waiting_old_items: number;
+        }[];
+      };
+      dashboard_by_date: {
+        Args: {
+          p_from?: string;
+          p_grain?: string;
+          p_resort?: string;
+          p_to?: string;
+        };
+        Returns: {
+          bucket_start: string;
+          expected_paise: number;
+          total_collection_paise: number;
+          waiting_paise: number;
+        }[];
+      };
+      dashboard_by_resort: {
+        Args: { p_from?: string; p_resort?: string; p_to?: string };
+        Returns: {
+          bookings: number;
+          expected_paise: number;
+          is_active: boolean;
+          net_collection_paise: number;
+          pending_paise: number;
+          refunds_paise: number;
+          resort_code: string;
+          resort_id: string;
+          resort_name: string;
+          total_collection_paise: number;
+          waiting_paise: number;
+        }[];
+      };
+      dashboard_range: {
+        Args: { p_from: string; p_to: string };
+        Returns: {
+          d_from: string;
+          d_to: string;
+        }[];
+      };
+      dashboard_summary: {
+        Args: { p_from?: string; p_resort?: string; p_to?: string };
+        Returns: {
+          checkins_today: number;
+          checkouts_today: number;
+          expected_paise: number;
+          net_collection_paise: number;
+          pending_paise: number;
+          period_from: string;
+          period_to: string;
+          refunds_paise: number;
+          total_bookings: number;
+          total_collection_paise: number;
+          total_resorts: number;
+          waiting_items: number;
+          waiting_paise: number;
+        }[];
+      };
       decide_payment: {
         Args: {
           p_expected_version: number;

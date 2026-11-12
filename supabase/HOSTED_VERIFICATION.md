@@ -190,3 +190,6 @@ The date rules use `Asia/Kolkata` explicitly. A real test needs the hosted clock
 
 ## 8. Privileges and advisors after apply (RSV-05, 09, 10)
 Re-run the read-only queries and `db advisors` from the first verification; compare with `tests/db/schema-security.test.ts` (SEC-04).
+
+## 0j. Migration 20 (dashboard functions): NOT applied to hosted
+Adds five read-only functions (`dashboard_range`, `dashboard_summary`, `dashboard_by_resort`, `dashboard_by_date`, `dashboard_alerts`): SECURITY INVOKER, empty search_path, revoked from PUBLIC/anon, granted to authenticated; no tables, no data, no policy changes. Expected after apply: history 20; 21 tables; **94 functions, 43 callable by signed-in users, 0 by anon/PUBLIC**; 26 policies; 105 triggers; data unchanged. Procedure when approved: fresh safety export, `npm run preflight:hosted -- --pending=20261111000020`, dry run listing only that file, apply, then `npm run catalog:local` and `catalog:compare`.

@@ -55,7 +55,7 @@ M2: essential targeted security and financial-rule checks only. M3, M4, M6, M7, 
 | M0 | Requirement Analysis and Architecture | ✅ Complete | Yes (2026-11-11) |
 | M1 | Project Setup | 🟢 Complete, awaiting review | No |
 | M2 | Database and Authentication | 🟡 In progress (one milestone). Schema written, tested and reviewed locally. Not applied. | Started 2026-11-11; applying to Supabase and creating the Owner need separate approval |
-| M3 | UI and Dashboard | ⚪ Not started | No |
+| M3 | UI and Dashboard | 🟡 Built and checked locally; **uncommitted**; migration 20 (dashboard functions) **not applied** to hosted | Commit and applying 020 need separate approvals |
 | M4 | Resort, Guest and Booking Management | ⚪ Not started | No |
 | M5 | Payment Management and Approvals | ⚪ Not started | No |
 | M6 | Automatic PDF Generation | ⚪ Not started | No |

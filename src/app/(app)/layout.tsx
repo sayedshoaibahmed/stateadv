@@ -1,56 +1,64 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BottomNav, Sidebar } from "@/components/app/shell/nav-links";
+import {
+  GlobalSearch,
+  ResortFilter,
+} from "@/components/app/shell/top-controls";
 import { logout } from "@/lib/auth/actions";
 import { requireUser } from "@/lib/auth/session";
+import { loadResortChoices, loadWaitingCount } from "@/lib/dashboard/data";
 
 /**
  * Everything inside this folder needs a signed-in, active user who has
  * already chosen their own password. The check runs on the server for every
  * request; nothing here relies on the browser.
+ *
+ * The frame: top bar (name, search, resort filter, sign out), side menu from tablet width up, bottom bar on phones.
+ * Owners and Managers see the same menu (Q10).
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await requireUser();
+  const [waiting, resorts] = await Promise.all([
+    loadWaitingCount(),
+    loadResortChoices(),
+  ]);
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="flex items-center justify-between gap-3 border-b px-4 py-3">
-        <nav aria-label="Main" className="flex items-center gap-4">
-          <Link href="/" className="font-semibold">
-            Resort Management
-          </Link>
-          <Link
-            href="/users"
-            className="text-sm underline-offset-4 hover:underline"
-          >
-            People
-          </Link>
-          <Link
-            href="/settings"
-            className="text-sm underline-offset-4 hover:underline"
-          >
-            Settings
-          </Link>
+      <header className="flex flex-wrap items-center gap-2 border-b px-3 py-2 sm:flex-nowrap sm:gap-3 sm:px-4">
+        <Link href="/dashboard" className="hidden font-semibold sm:block">
+          Resort Management
+        </Link>
+        <GlobalSearch />
+        <Suspense fallback={null}>
+          <ResortFilter resorts={resorts} />
+        </Suspense>
+        <div className="ml-auto flex items-center gap-2">
           <Link
             href="/account"
-            className="text-sm underline-offset-4 hover:underline"
+            className="hidden text-sm underline-offset-4 hover:underline sm:inline"
           >
-            My Account
+            {user.fullName}
           </Link>
-        </nav>
-        <div className="flex items-center gap-3">
-          <span className="hidden text-sm sm:inline">{user.fullName}</span>
           <Badge variant="secondary">
             {user.role === "owner" ? "Owner" : "Manager"}
           </Badge>
           <form action={logout}>
-            <Button type="submit" variant="outline" size="sm">
+            <Button type="submit" variant="outline" className="min-h-11">
               Sign out
             </Button>
           </form>
         </div>
       </header>
-      <div className="flex flex-1 flex-col">{children}</div>
+      <div className="flex flex-1">
+        <Sidebar waiting={waiting} />
+        <div className="flex min-w-0 flex-1 flex-col pb-20 sm:pb-0">
+          {children}
+        </div>
+      </div>
+      <BottomNav waiting={waiting} />
     </div>
   );
 }

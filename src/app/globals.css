@@ -10,6 +10,24 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+  --color-approved: var(--money-approved);
+  --color-approved-soft: var(--money-approved-soft);
+  --color-waiting: var(--money-waiting);
+  --color-waiting-soft: var(--money-waiting-soft);
+  --color-rejected: var(--money-rejected);
+  --color-rejected-soft: var(--money-rejected-soft);
+  --color-reversed: var(--money-reversed);
+  --color-reversed-soft: var(--money-reversed-soft);
+  --color-pending: var(--money-pending);
+  --color-pending-soft: var(--money-pending-soft);
+  --color-extra: var(--money-extra);
+  --color-extra-soft: var(--money-extra-soft);
+  --color-refund: var(--money-refund);
+  --color-refund-soft: var(--money-refund-soft);
+  --color-self: var(--money-self);
+  --color-self-soft: var(--money-self-soft);
+  --color-adjusted: var(--money-adjusted);
+  --color-adjusted-soft: var(--money-adjusted-soft);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -81,6 +99,27 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Design tokens: what a colour MEANS (UI spec section 1, point 4). Colour is never the only signal: every use also
+     carries an icon and a word. Each pair is text colour + soft background and keeps WCAG AA contrast. */
+  --money-approved: oklch(0.42 0.12 150);
+  --money-approved-soft: oklch(0.96 0.04 150);
+  --money-waiting: oklch(0.46 0.11 70);
+  --money-waiting-soft: oklch(0.97 0.06 85);
+  --money-rejected: oklch(0.48 0.19 27);
+  --money-rejected-soft: oklch(0.96 0.03 27);
+  --money-reversed: oklch(0.44 0 0);
+  --money-reversed-soft: oklch(0.96 0 0);
+  --money-pending: oklch(0.44 0.15 255);
+  --money-pending-soft: oklch(0.96 0.03 255);
+  --money-extra: oklch(0.44 0.17 305);
+  --money-extra-soft: oklch(0.96 0.03 305);
+  --money-refund: oklch(0.43 0.08 195);
+  --money-refund-soft: oklch(0.96 0.03 195);
+  --money-self: oklch(0.47 0.13 50);
+  --money-self-soft: oklch(0.96 0.05 60);
+  --money-adjusted: oklch(0.44 0 0);
+  --money-adjusted-soft: oklch(0.95 0 0);
+  --touch-target: 2.75rem; /* 44 px: the smallest tap area (UI spec section 1, point 3) */
 }
 
 .dark {
@@ -115,6 +154,24 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --money-approved: oklch(0.82 0.13 150);
+  --money-approved-soft: oklch(0.3 0.05 150);
+  --money-waiting: oklch(0.85 0.12 85);
+  --money-waiting-soft: oklch(0.32 0.05 80);
+  --money-rejected: oklch(0.8 0.13 27);
+  --money-rejected-soft: oklch(0.3 0.06 27);
+  --money-reversed: oklch(0.8 0 0);
+  --money-reversed-soft: oklch(0.3 0 0);
+  --money-pending: oklch(0.8 0.12 255);
+  --money-pending-soft: oklch(0.3 0.06 255);
+  --money-extra: oklch(0.82 0.13 305);
+  --money-extra-soft: oklch(0.3 0.06 305);
+  --money-refund: oklch(0.82 0.09 195);
+  --money-refund-soft: oklch(0.3 0.04 195);
+  --money-self: oklch(0.84 0.12 60);
+  --money-self-soft: oklch(0.32 0.05 55);
+  --money-adjusted: oklch(0.8 0 0);
+  --money-adjusted-soft: oklch(0.3 0 0);
 }
 
 @layer base {
@@ -130,5 +187,15 @@
   }
   html {
     @apply font-sans;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
