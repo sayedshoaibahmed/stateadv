@@ -8,7 +8,7 @@ Last updated: 2026-11-11
 ### Where each thing has been verified
 | Level | State |
 |---|---|
-| **Hosted dev project** (PostgreSQL 17.11) | Migrations **01–19 applied and verified** item by item against a local rebuild (HOSTED_VERIFICATION 0h and 0i; 019 on 2026-11-12): 89 functions, 38 callable by signed-in users, 0 by anon, 4 placeholder resorts, 4 C/O categories, reference data intact. No Owner account, no users, no data. Signup disabled. |
+| **Hosted dev project** (PostgreSQL 17.11) | Migrations **01–20 applied and verified** against a local rebuild (HOSTED_VERIFICATION 0h, 0i and 0k; 019 and 020 on 2026-11-12): 94 functions, 43 callable by signed-in users, 0 by anon or PUBLIC, 21 tables, 26 policies, 105 triggers, 4 placeholder resorts, 4 C/O categories, reference data intact. One active Owner account (password changed), no other users, no business data. Signup disabled. |
 | **GitHub** | `origin/main` = `91a4d13`; all four CI jobs passed (lint/typecheck/test/build, secret scan, PostgreSQL 17 database tests, PostgreSQL 17 as a non-superuser; reported by the owner). Only documentation changes are uncommitted. |
 | **Local, real PostgreSQL 17.11** (throw-away server) | **355** database tests + **18** simultaneous-request tests pass, in each of two modes: superuser, and the hosted rehearsal (migrations run as a plain role named `postgres`). |
 | **Local, PGlite** | **508** tests pass (18 concurrency tests skipped there). |
@@ -21,7 +21,7 @@ Last updated: 2026-11-11
 **Known issue (open):** on this Windows machine the many-connection test file sometimes loses its Node worker process (about 1 run in 10; no failing assertion ever; see MIGRATION_REVIEW 14.6).
 
 ### Stage 2026-11-12 (O3 hardening: committed, APPLIED to hosted, verified)
-Security Advisor finding F1 (the Owner's password re-entry existed only in the server action) is fixed and hardened after an independent review: **migration 19** adds single-use, 60-second re-authentication grants bound to the exact operation, attempts reserved atomically under a per-Owner lock BEFORE the password is tried (5 per 15 minutes; REA-16 tests the window with controlled timestamps), every database call failing closed, no grant id returned, and re-authentication audit rows readable by Owners only. Committed as `91a4d13` (all four CI jobs green) and **applied to the hosted project on 2026-11-12**: a fresh safety export was verified first, `preflight:hosted` passed P1-P9, and afterwards the hosted catalog was identical to a local rebuild in every category (history 19, 21 tables, 89 functions, 38 callable by signed-in users, 0 by anon, 26 policies, 105 triggers); data, the Owner account and the 18 earlier audit rows are unchanged; anonymous access to the new table and functions is refused. Not shown on hosted yet: a real grant being used by a real session (needs a second Owner). The M3 dashboard-functions migration is number 20. Details: `SECURITY.md` section 15, `supabase/MIGRATION_REVIEW.md` section 16, `supabase/HOSTED_VERIFICATION.md` 0i.
+Security Advisor finding F1 (the Owner's password re-entry existed only in the server action) is fixed and hardened after an independent review: **migration 19** adds single-use, 60-second re-authentication grants bound to the exact operation, attempts reserved atomically under a per-Owner lock BEFORE the password is tried (5 per 15 minutes; REA-16 tests the window with controlled timestamps), every database call failing closed, no grant id returned, and re-authentication audit rows readable by Owners only. Committed as `91a4d13` (all four CI jobs green) and **applied to the hosted project on 2026-11-12**: a fresh safety export was verified first, `preflight:hosted` passed P1-P9, and afterwards the hosted catalog was identical to a local rebuild in every category (history 19, 21 tables, 89 functions, 38 callable by signed-in users, 0 by anon, 26 policies, 105 triggers); data, the Owner account and the 18 earlier audit rows are unchanged; anonymous access to the new table and functions is refused. Not shown on hosted yet: a real grant being used by a real session (needs a second Owner). The M3 dashboard-functions migration is number 20 and is now applied to hosted too (see the M3 note below). Details: `SECURITY.md` section 15, `supabase/MIGRATION_REVIEW.md` section 16, `supabase/HOSTED_VERIFICATION.md` 0i.
 
 ### Stage 2026-11-11 (later): checks completed without needing approval
 - **GitHub:** `5050a8e` pushed; all four CI jobs passed (reported by the owner), including the new restricted-role job.
@@ -55,7 +55,7 @@ M2: essential targeted security and financial-rule checks only. M3, M4, M6, M7, 
 | M0 | Requirement Analysis and Architecture | ✅ Complete | Yes (2026-11-11) |
 | M1 | Project Setup | 🟢 Complete, awaiting review | No |
 | M2 | Database and Authentication | 🟡 In progress (one milestone). Schema written, tested and reviewed locally. Not applied. | Started 2026-11-11; applying to Supabase and creating the Owner need separate approval |
-| M3 | UI and Dashboard | 🟡 Built and checked locally; **uncommitted**; migration 20 (dashboard functions) **not applied** to hosted | Commit and applying 020 need separate approvals |
+| M3 | UI and Dashboard | 🟡 Built, committed (`a4ea2de`, comment fix `714a514`, both pushed); migration 20 (dashboard functions) **applied to hosted and verified 2026-11-12**. Open: no real authenticated call tested on hosted; page not yet viewed in a browser against hosted | Browser QA stays deferred (after M8; comprehensive QA in M9) |
 | M4 | Resort, Guest and Booking Management | ⚪ Not started | No |
 | M5 | Payment Management and Approvals | ⚪ Not started | No |
 | M6 | Automatic PDF Generation | ⚪ Not started | No |
@@ -140,3 +140,12 @@ M2: essential targeted security and financial-rule checks only. M3, M4, M6, M7, 
 - Production hosting budget and providers are deferred (Q11). The production requirements are documented.
 - Remaining business risk: Managers can disable/reset other Managers (decided Q10; mitigated). Owner accounts are protected (O1–O4).
 - Owner "Forgot password" emails need a production email sender (cost under Q11).
+
+## M3: migration 20 applied to hosted (2026-11-12)
+Migration `20261111000020_dashboard_functions.sql` (five read-only dashboard functions) was applied alone, after preflight P1-P9, a dry run listing only that file, and a fresh verified safety export (`stateadv-backups/hosted-export-2026-11-12T03-13-23`, outside the repository). Afterwards, read-only: history exactly 01-20; the five function bodies equal the migration source; all five SECURITY INVOKER with an empty search_path; `authenticated` can execute them, `anon` and PUBLIC cannot; 94 functions, 43 callable by signed-in users, 0 by anon/PUBLIC; 21 tables, 26 policies, 105 triggers; hosted equals a local rebuild in every catalog category (`catalog:compare`); row counts of all 21 tables and the content of resorts, stay types, payment providers, C/O categories and user profiles equal the safety export; 18 audit rows unchanged; the one Owner account intact; anonymous calls to all five functions refused. No other migration, user, password, role change or deployment happened.
+
+**Two limitations remain, stated plainly:**
+1. No real *authenticated* call of the dashboard functions has been made against hosted Supabase (it needs a login; hosted also holds no bookings or payments, so it would return zeros).
+2. The dashboard page has not been visually checked in a browser against hosted Supabase.
+
+Browser QA remains deferred as decided: comprehensive M2/M3 browser testing is scheduled after M8, with comprehensive QA in M9.

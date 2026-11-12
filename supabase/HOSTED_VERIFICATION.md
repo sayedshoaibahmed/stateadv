@@ -191,5 +191,23 @@ The date rules use `Asia/Kolkata` explicitly. A real test needs the hosted clock
 ## 8. Privileges and advisors after apply (RSV-05, 09, 10)
 Re-run the read-only queries and `db advisors` from the first verification; compare with `tests/db/schema-security.test.ts` (SEC-04).
 
-## 0j. Migration 20 (dashboard functions): NOT applied to hosted
-Adds five read-only functions (`dashboard_range`, `dashboard_summary`, `dashboard_by_resort`, `dashboard_by_date`, `dashboard_alerts`): SECURITY INVOKER, empty search_path, revoked from PUBLIC/anon, granted to authenticated; no tables, no data, no policy changes. Expected after apply: history 20; 21 tables; **94 functions, 43 callable by signed-in users, 0 by anon/PUBLIC**; 26 policies; 105 triggers; data unchanged. Procedure when approved: fresh safety export, `npm run preflight:hosted -- --pending=20261111000020`, dry run listing only that file, apply, then `npm run catalog:local` and `catalog:compare`.
+## 0k. Migration 20 (dashboard functions): APPLIED to hosted 2026-11-12 and verified
+Adds five read-only functions (`dashboard_range`, `dashboard_summary`, `dashboard_by_resort`, `dashboard_by_date`, `dashboard_alerts`): SECURITY INVOKER, empty search_path, revoked from PUBLIC/anon, granted to authenticated; no tables, no data, no policy or trigger changes.
+
+**Before:** commit `714a514` on `origin/main` equal to the working tree; safety export `stateadv-backups/hosted-export-2026-11-12T03-13-23` (outside the repository, no credentials, all 4 manifest SHA-256 hashes match; compared with the live database: functions 89, constraints 191, indexes 84, triggers 105, policies 26, columns 314 by per-item hash, row counts of 21 tables, 3 reference tables and 18 audit rows, history 19 rows; the tool's own check "recorded SQL equals git" prints FAIL only because it still expects exactly 10 migrations, while all 19 match); `npm run preflight:hosted -- --pending=20261111000020` PASSED P1-P9; `db push --dry-run` listed exactly `20261111000020_dashboard_functions.sql`.
+
+**Applied** with `supabase db push --skip-vault --yes` (credentials redacted from all output): exit 0, no error, only migration 020.
+
+**After (all read-only):**
+- migration history exactly 20261111000001 to 20261111000020 (20 rows)
+- exactly five `dashboard_*` functions; their bodies equal the source in the migration file
+- all five SECURITY INVOKER, STABLE, `search_path=""`
+- `authenticated` may execute all five; `anon` and PUBLIC may execute none
+- **94 functions in `public`, 43 callable by signed-in users, 0 by anon, 0 by PUBLIC**; 21 tables; 26 policies; 105 triggers (public plus the one on `auth.users`)
+- `npm run catalog:local` (throw-away PostgreSQL 17, migrations 1..20) and `npm run catalog:compare`: **hosted state equals the local rebuild** in every category: history 20, columns 314, constraints 191, indexes 84, triggers 105, policies 26, functions 94, function privileges 94, table privileges 183, column privileges 303, RLS 21, enums 8, views 3, relations 30. The rebuild catalog is `stateadv-backups/catalog-after-020.json`.
+- row counts of all 21 tables equal the safety export; content of resorts, stay_types, payment_providers, co_categories and user_profiles equals it; audit_logs still 18 rows (max id 18); one active Owner account
+- anonymous calls (publishable key, no login) to all five functions are refused: HTTP 401 permission denied for four, HTTP 404 for `dashboard_range` (not exposed to anon)
+
+**Not done, so not claimed:** (1) no real *authenticated* call of the dashboard functions against hosted (needs a login; hosted has no bookings or payments, so the result would be zeros); (2) the dashboard page has not been visually verified in a browser against hosted. Browser QA stays deferred (after M8; comprehensive QA in M9).
+
+Nothing else happened: no other migration, no user created, no password or role changed, no deployment.

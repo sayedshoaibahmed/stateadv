@@ -1,6 +1,6 @@
 # M2 — Database migration review guide
 
-**Status (updated 2026-11-12): migrations 01–19 are APPLIED to the dev Supabase project and verified** (evidence: `HOSTED_VERIFICATION.md` sections 0h and 0i). The text below was written before 11–18 were applied and is kept as the review record; where it says "not applied", read "applied on 2026-11-11 after the owner's approval".
+**Status (updated 2026-11-12): migrations 01–20 are APPLIED to the dev Supabase project and verified** (evidence: `HOSTED_VERIFICATION.md` sections 0h, 0i and 0k). The text below was written before 11–18 were applied and is kept as the review record; where it says "not applied", read "applied on 2026-11-11 after the owner's approval".
 
 **Updated 2026-11-11:** your decisions O7 (verified own-email change), Q9a (correction files) and D5 (reversal protection) are now in the migration files. Section 10 shows exactly what changed, file by file. Sections 1-9 describe the current files.
 
@@ -475,7 +475,7 @@ File: `supabase/migrations/20261111000019_reauth_grants.sql`. Approved by the ow
 
 Tests (all local): REA-01..16 (tests/db/reauth-grants.test.ts, 24 tests, run on PGlite and on real PostgreSQL 17; REA-16 is the 15-minute window with controlled timestamps), CON-19 and CON-20 (real PostgreSQL 17: one grant claimed by six simultaneous calls is used once and only by the call for the confirmed operation; twenty simultaneous attempts reserve at most five), REAUTH-U1..U13 (tests/unit/reauth.test.ts), PRE-U1..U8 and PRE-DB-1 (preflight logic and "migration text equals stored source"), and 24 targeted mutation checks "O3: ..." (23 on PGlite plus the advisory-lock one on real PostgreSQL), all caught.
 
-## 17. Migration 20: dashboard functions (local only, awaiting approval)
+## 17. Migration 20: dashboard functions, APPLIED to hosted 2026-11-12 and verified (HOSTED_VERIFICATION 0k)
 Read-only aggregate functions for the dashboard. All SECURITY INVOKER, so row-level security still applies to every table they read; each begins by refusing a non-active user (`dashboard_range`, NOT_ALLOWED); periods longer than 3,660 days or ending before they start are refused (INVALID_INPUT). Definitions: total collection = approved payments by payment date; waiting = waiting payments by payment date (plus an all-dates item count); refunds = approved by refund date; pending = booking financials as of now; expected = payment-plan rows due in the period; overdue via `booking_overdue(today_ist())`. Tests DSH-01..18 and SEC-04 pass on PGlite, PostgreSQL 17 (superuser and restricted-role) and the concurrency suite. No existing object changes.
 
 ### Dashboard definitions (confirmed by the owner, 2026-11-12)
@@ -483,3 +483,5 @@ Read-only aggregate functions for the dashboard. All SECURITY INVOKER, so row-le
 2. **Today's Check-ins / Check-outs** = bookings checking in / out on today's IST date, excluding cancelled and no-show; independent of the chosen period.
 3. **Pending Amount** = money still to be received as of now (final amount less approved payments plus approved refunds), independent of the chosen period.
 4. **Waiting for Approval** = waiting payments by payment date in the chosen period; the card also states how many waiting payments and refunds exist across all dates.
+
+Applied alone after preflight P1-P9, a dry run and a verified safety export. Hosted afterwards equals a local rebuild in every catalog category (94 functions, 43 callable by signed-in users, 0 by anon/PUBLIC). Not yet tested: a real authenticated call, and the page against hosted in a browser.

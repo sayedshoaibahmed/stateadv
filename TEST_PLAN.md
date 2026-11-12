@@ -410,7 +410,7 @@ Totals at the time of writing: PGlite **508** pass / 18 skipped; PostgreSQL 17.1
 
 Existing tests that call protected actions directly (ACM-03/10/13/15/21/24, DEC-3e, CON-04) now issue a grant first (`reauth()` in tests/db/fixtures.ts, with the common operation as default). One real defect was found by these tests while writing them: a NULL operation slipped through a SQL three-valued-logic test in `issue_reauth`; fixed with an explicit coalesce and an equivalent guard on the table constraint. Not testable until a second Owner exists: the real Supabase Auth password check and the screens.
 
-## 2.21 M3: UI shell and dashboard (local only; migration 20 not applied to hosted)
+## 2.21 M3: UI shell and dashboard (tests run locally; migration 20 applied to hosted 2026-11-12, see HOSTED_VERIFICATION 0k)
 | Tests | File | What they prove |
 |---|---|---|
 | DSH-01..18 (18) | `tests/db/dashboard.test.ts` | Hand-calculated golden dataset (2 resorts, period D-10..D): Total Collection counts approved payments only by payment date; waiting is separate; refunds and net; pending as of now; expected from the plan; check-ins/outs today (cancelled/no-show excluded); resort filter and all-resorts totals; chart buckets (day/month); alerts (waiting >3 days, overdue, self-approved, failed PDFs, backup >36 h); anonymous and inactive users refused; bad periods refused |
