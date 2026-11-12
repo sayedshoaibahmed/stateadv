@@ -1,7 +1,8 @@
 -- =============================================================================
 -- 20 DASHBOARD FUNCTIONS (M3: the dashboard's aggregate numbers)
 --
--- Four read-only functions behind the dashboard (PRD FR-DSH-2..4, UI spec 3.2). They only READ.
+-- Five read-only functions behind the dashboard (PRD FR-DSH-2..4, UI spec 3.2). They only READ.
+--   dashboard_range     checks the caller and the period; the four below call it
 --   dashboard_summary   the cards: resorts, bookings, today's check-ins/outs, Expected, Total Collection (Approved),
 --                       Waiting for Approval, Refunds, Net Collection, Pending Amount
 --   dashboard_by_resort the resort-wise table
