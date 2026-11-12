@@ -601,7 +601,7 @@ No table changed. `booking_pdf_versions`, `pdf_jobs` and the private bucket `boo
 | `pdf_hash(json)` | internal | SHA-256 of the printed content (the generation time is not part of it) |
 | `pdf_prepare(booking)` | authenticated, service role | `{needed, version_no, path, hash, latest_version, data}`; the database picks the next number and the storage name |
 | `register_pdf_version(booking, hash, version, reason, size)` | authenticated, service role | locks the booking, recomputes the hash (`PDF_STALE`), returns `created:false` when nothing changed, requires version = highest + 1 (`PDF_VERSION_CONFLICT`), checks the stored object's size and type (`INVALID_FILE`), stores the totals summary |
-| `finish_pdf_jobs(booking, up_to, ok, error)` | authenticated, service role | closes the open jobs up to the highest id seen; error text cut to 300 characters |
+| `finish_pdf_jobs(booking, up_to, ok, error)` | authenticated, service role | closes the open jobs up to the highest id seen. **Service role:** pending, running or failed jobs, its own error text (cut to 300). **A person:** only pending or failed jobs (never running); "done" only when the latest registered version's hash equals the hash recomputed now, else 0 and the jobs stay open; a failure always stores "The PDF could not be made." |
 | `claim_pdf_jobs(max)` | service role only | `FOR UPDATE SKIP LOCKED`; pending or failed jobs with fewer than 5 attempts, or running longer than 15 minutes; at most 50 |
 | `request_pdf_regeneration(booking)` | authenticated | queues a job "regenerate requested" |
 Expected counts on hosted after migration 23: 106 functions (+7 over 99), 53 authenticated-callable (+5 over 48), 0 anon/PUBLIC. Not verified on hosted (not applied).

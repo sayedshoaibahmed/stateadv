@@ -265,22 +265,50 @@ revoke all on function public.register_pdf_version(uuid, text, int, text, int) f
 grant execute on function public.register_pdf_version(uuid, text, int, text, int) to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
--- finish_pdf_jobs: the open jobs of a booking up to a job number are done (p_ok) or failed (with a short message that
--- never contains booking data). Jobs queued while the PDF was being made have a higher number and stay open.
+-- finish_pdf_jobs: the open jobs of a booking up to a job number are done (p_ok) or failed. Jobs queued while the PDF
+-- was being made have a higher number and stay open. Two kinds of caller, two sets of rules:
+--
+--   the retry job (service role)  may finish jobs it claimed (status running) as well as pending/failed ones, with its
+--                                 own error text (cut to 300 characters; it never contains booking data).
+--   a person (active session)     may finish only pending or failed jobs, never a running one (that belongs to the
+--                                 retry job). "Done" is accepted only when the latest REGISTERED version already
+--                                 represents the booking as it is now (its hash equals the hash recomputed here from
+--                                 the trusted tables; nothing the caller sends is trusted); otherwise 0 is returned
+--                                 and the jobs stay open. "Failed" always stores the fixed text, never the caller's.
 -- ---------------------------------------------------------------------------
 create function public.finish_pdf_jobs(p_booking uuid, p_up_to bigint, p_ok boolean, p_error text default null)
 returns int
 language plpgsql security definer
 set search_path = ''
 as $$
-declare n int;
+declare
+  v_actor  uuid := public.pdf_actor();      -- NULL = the service role (retry job), otherwise the signed-in person
+  v_system boolean;
+  v_now    text;
+  n        int;
 begin
-  perform public.pdf_actor();
+  v_system := v_actor is null;
+  if not v_system and p_ok then
+    v_now := public.pdf_hash(public.pdf_booking_data(p_booking));
+    perform 1
+       from public.booking_pdf_versions v
+      where v.booking_id = p_booking
+        and v.version_no = (select max(v2.version_no) from public.booking_pdf_versions v2 where v2.booking_id = p_booking)
+        and v.content_hash = v_now;
+    if not found then
+      return 0;
+    end if;
+  end if;
   update public.pdf_jobs
      set status = case when p_ok then 'done'::public.pdf_job_status else 'failed'::public.pdf_job_status end,
-         last_error = case when p_ok then null else left(btrim(coalesce(p_error, 'The PDF could not be made.')), 300) end,
+         last_error = case
+                        when p_ok then null
+                        when v_system then left(btrim(coalesce(p_error, 'The PDF could not be made.')), 300)
+                        else 'The PDF could not be made.' end,
          updated_at = now()
-   where booking_id = p_booking and id <= p_up_to and status in ('pending', 'running', 'failed');
+   where booking_id = p_booking and id <= p_up_to
+     and ((v_system and status in ('pending', 'running', 'failed'))
+          or (not v_system and status in ('pending', 'failed')));
   get diagnostics n = row_count;
   return n;
 end

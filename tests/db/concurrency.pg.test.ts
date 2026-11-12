@@ -1101,4 +1101,50 @@ describe.skipIf(!REAL)("concurrent requests on real PostgreSQL", () => {
     expect(Number(open[0].n)).toBe(claimed.length);
     expect(claimed.length).toBeGreaterThanOrEqual(6); // every job (6 bookings, 6 jobs plus the creation jobs) is claimed once or left open
   });
+
+  it("CON-27 (M6): six people finishing the same booking's jobs at once with a matching version: every job is closed exactly once, no error, no extra version", async () => {
+    const b = await newBooking();
+    await mq(`select public.update_booking($1, 1, $2::jsonb)`, [
+      b,
+      j({ remarks: "c27" }),
+    ]);
+    const [{ r: prep }] = await mq<{ r: Json }>(
+      `select public.pdf_prepare($1) as r`,
+      [b],
+    );
+    await w.db.q(
+      `insert into storage.objects (bucket_id, name, metadata) values ('booking-pdfs', $1, $2::jsonb)`,
+      [prep.path, j({ size: 4000, mimetype: "application/pdf" })],
+    );
+    await mq(
+      `select public.register_pdf_version($1, $2, $3, 'made', 4000) as r`,
+      [b, prep.hash, prep.version_no],
+    );
+    const open = await w.db.q<{ n: string; m: string }>(
+      `select count(*)::text n, max(id)::text m from public.pdf_jobs where booking_id = $1 and status = 'pending'`,
+      [b],
+    );
+    const res = await parallel(Array(6).fill(w.manager), (c) =>
+      c.query(`select public.finish_pdf_jobs($1, $2, true) as r`, [
+        b,
+        open[0].m,
+      ]),
+    );
+    expect(res.every((r) => r.ok)).toBe(true);
+    const total = res.reduce(
+      (a, r) => a + (r.ok ? Number(r.value.rows[0].r) : 0),
+      0,
+    );
+    expect(total).toBe(Number(open[0].n));
+    const left = await w.db.q<{ n: string }>(
+      `select count(*)::text n from public.pdf_jobs where booking_id = $1 and status <> 'done'`,
+      [b],
+    );
+    expect(left[0].n).toBe("0");
+    const vs = await w.db.q<{ n: string }>(
+      `select count(*)::text n from public.booking_pdf_versions where booking_id = $1`,
+      [b],
+    );
+    expect(vs[0].n).toBe("1");
+  });
 });

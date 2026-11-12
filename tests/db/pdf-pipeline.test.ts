@@ -637,6 +637,7 @@ describe("jobs: queued by every write, finished, claimed by the retry job (PDB-1
       `select public.update_booking($1, 2, '{"remarks":"two"}'::jsonb) as r`,
       [b.id],
     );
+    await makeVersion(b.id, "test"); // a person may only say "done" once a version represents the booking
     const before = await jobs(b.id);
     expect(before.length).toBeGreaterThanOrEqual(2);
     const upTo = before[1].id;
@@ -655,11 +656,13 @@ describe("jobs: queued by every write, finished, claimed by the retry job (PDB-1
       [b.id],
     );
     const last = (await jobs(b.id)).at(-1)!;
-    await call(`select public.finish_pdf_jobs($1, $2, false, $3) as r`, [
-      b.id,
-      last.id,
-      "x".repeat(500),
-    ]);
+    await asSystem(() =>
+      q(`select public.finish_pdf_jobs($1, $2, false, $3) as r`, [
+        b.id,
+        last.id,
+        "x".repeat(500),
+      ]),
+    ); // the retry job's own text is kept (cut to 300)
     const after = (await jobs(b.id)).at(-1)!;
     expect(after.status).toBe("failed");
     expect(after.last_error).toHaveLength(300);
@@ -703,18 +706,20 @@ describe("jobs: queued by every write, finished, claimed by the retry job (PDB-1
     expect(await claim()).toEqual([]); // running: not taken twice
     // it fails, is claimed again, and so on up to 5 attempts
     for (let attempt = 2; attempt <= 5; attempt++) {
-      await call(
-        `select public.finish_pdf_jobs($1, $2, false, 'boom') as r`,
-        [b.id, own.at(-1)],
-        w.manager,
+      await asSystem(() =>
+        q(`select public.finish_pdf_jobs($1, $2, false, 'boom') as r`, [
+          b.id,
+          own.at(-1),
+        ]),
       );
       const again = await claim();
       expect(again.map((x) => x.attempts)).toEqual([attempt]);
     }
-    await call(
-      `select public.finish_pdf_jobs($1, $2, false, 'boom') as r`,
-      [b.id, own.at(-1)],
-      w.manager,
+    await asSystem(() =>
+      q(`select public.finish_pdf_jobs($1, $2, false, 'boom') as r`, [
+        b.id,
+        own.at(-1),
+      ]),
     );
     expect(await claim()).toEqual([]); // 5 attempts used: left failed for a person to press "Regenerate PDF"
     // a crashed attempt
@@ -785,6 +790,150 @@ describe("jobs: queued by every write, finished, claimed by the retry job (PDB-1
       call(`select public.request_pdf_regeneration($1) as r`, [uid()]),
       "NOT_FOUND",
     );
+  });
+  describe("finish_pdf_jobs: what a person may and may not finish (PDB-27..)", () => {
+    const fresh = async (resort: "A" | "B" = "A") => {
+      const b = await createBooking(w, {
+        resort,
+        bookingDateOffset: -1,
+        checkInOffset: 3,
+        plan: "auto",
+      });
+      await call(
+        `select public.update_booking($1, 1, '{"remarks":"one"}'::jsonb) as r`,
+        [b.id],
+      );
+      return b;
+    };
+    const upTo = async (b: string) => (await jobs(b)).at(-1)!.id;
+    const fin = async (
+      b: string,
+      id: string,
+      ok: boolean,
+      err: string | null = null,
+    ) =>
+      Number(
+        await call<number>(
+          `select public.finish_pdf_jobs($1, $2, $3, $4) as r`,
+          [b, id, ok, err],
+        ),
+      );
+    const finSys = (
+      b: string,
+      id: string,
+      ok: boolean,
+      err: string | null = null,
+    ) =>
+      asSystem(async () =>
+        Number(
+          (
+            await q<{ r: number }>(
+              `select public.finish_pdf_jobs($1, $2, $3, $4) as r`,
+              [b, id, ok, err],
+            )
+          )[0].r,
+        ),
+      );
+
+    it("PDB-27: a person cannot say 'done' when no registered version exists: 0 is returned and every job stays open", async () => {
+      const b = await fresh();
+      const before = await jobs(b.id);
+      expect(await fin(b.id, await upTo(b.id), true)).toBe(0);
+      expect(await jobs(b.id)).toEqual(before);
+      expect(before.every((j) => j.status === "pending")).toBe(true);
+    });
+    it("PDB-28: nor when the latest registered version is out of date (the booking changed after it): still 0, jobs open", async () => {
+      const b = await fresh();
+      await makeVersion(b.id, "first");
+      await call(
+        `select public.update_booking($1, 2, '{"remarks":"two"}'::jsonb) as r`,
+        [b.id],
+      );
+      expect((await prep(b.id)).needed).toBe(true);
+      expect(await fin(b.id, await upTo(b.id), true)).toBe(0);
+      expect((await jobs(b.id)).every((j) => j.status === "pending")).toBe(
+        true,
+      );
+    });
+    it("PDB-29: a person's 'done' works once the latest version matches the booking now (the made-a-version path)", async () => {
+      const b = await fresh();
+      await makeVersion(b.id, "made");
+      const n = (await jobs(b.id)).length;
+      expect(await fin(b.id, await upTo(b.id), true)).toBe(n);
+      expect((await jobs(b.id)).every((j) => j.status === "done")).toBe(true);
+    });
+    it("PDB-30: and for the unchanged-content path: nothing changed since the latest version, a Regenerate job is closed as done", async () => {
+      const b = await fresh();
+      await makeVersion(b.id, "made");
+      await fin(b.id, await upTo(b.id), true);
+      await call(`select public.request_pdf_regeneration($1) as r`, [b.id]);
+      expect((await prep(b.id)).needed).toBe(false);
+      expect(await fin(b.id, await upTo(b.id), true)).toBe(1);
+      expect((await jobs(b.id)).at(-1)!.status).toBe("done");
+    });
+    it("PDB-31: a person cannot finish a RUNNING job, done or failed; the retry job (service role) can finish what it claimed", async () => {
+      await q(`update public.pdf_jobs set status = 'done'`);
+      const b = await fresh("B");
+      await makeVersion(b.id, "made"); // so the evidence rule would allow 'done'
+      const claimed = await asSystem(() =>
+        q(`select * from public.claim_pdf_jobs(10)`),
+      );
+      expect(claimed.length).toBeGreaterThan(0);
+      const last = await upTo(b.id);
+      expect(await fin(b.id, last, true)).toBe(0);
+      expect(await fin(b.id, last, false, "nope")).toBe(0);
+      expect((await jobs(b.id)).every((j) => j.status === "running")).toBe(
+        true,
+      );
+      expect(await finSys(b.id, last, false, "real failure")).toBe(
+        claimed.length,
+      );
+      const after = await jobs(b.id);
+      expect(after.every((j) => j.status === "failed")).toBe(true);
+      expect(after.every((j) => j.last_error === "real failure")).toBe(true);
+      await asSystem(() => q(`select * from public.claim_pdf_jobs(10)`));
+      expect(await finSys(b.id, last, true)).toBe(claimed.length);
+    });
+    it("PDB-32: a person's failure text is replaced by the fixed sentence; the retry job's own text is kept and cut to 300", async () => {
+      const b = await fresh();
+      const n = (await jobs(b.id)).length;
+      expect(
+        await fin(
+          b.id,
+          await upTo(b.id),
+          false,
+          "Guest Ramesh 9999999999 leaked",
+        ),
+      ).toBe(n);
+      let js = await jobs(b.id);
+      expect(js.every((j) => j.status === "failed")).toBe(true);
+      expect(
+        js.every((j) => j.last_error === "The PDF could not be made."),
+      ).toBe(true);
+      expect(await fin(b.id, await upTo(b.id), false, "other text")).toBe(n);
+      expect(
+        (await jobs(b.id)).every(
+          (j) => j.last_error === "The PDF could not be made.",
+        ),
+      ).toBe(true);
+      await finSys(b.id, await upTo(b.id), false, "y".repeat(400));
+      js = await jobs(b.id);
+      expect(js.every((j) => j.last_error === "y".repeat(300))).toBe(true);
+    });
+    it("PDB-33: finishing never changes a version: numbers and hashes are the same before and after any finish", async () => {
+      const b = await fresh();
+      await makeVersion(b.id, "made");
+      const vs = () =>
+        q(
+          `select version_no, content_hash from public.booking_pdf_versions where booking_id = $1 order by version_no`,
+          [b.id],
+        );
+      const before = await vs();
+      await fin(b.id, await upTo(b.id), true);
+      await fin(b.id, await upTo(b.id), false, "x");
+      await finSys(b.id, await upTo(b.id), true);
+      expect(await vs()).toEqual(before);
+    });
   });
 });
 

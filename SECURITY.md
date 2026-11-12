@@ -294,3 +294,9 @@ The five protected functions claim the grant in the same transaction through the
 - **Logging:** no `console` calls in the PDF code or the cron route; error text saved on a job is shortened and carries no guest data.
 - **CSP:** unchanged (it does not restrict downloads at present). The M9 nonce policy must allow the storage host.
 - **Open:** real signed-link download, logo fetch from the private logo bucket, Vercel cron and font tracing are not yet exercised outside tests.
+
+### 18a. `finish_pdf_jobs` correction (2026-11-12, found in a focused review; migration 23 still not applied to hosted)
+- **Weakness found:** any active user could mark any booking's open jobs done or failed, including jobs the retry job was running, with no proof that a PDF existed, and could store text of their choosing that other people then see.
+- **Corrected in the database (not only in the screens):** a person can finish only `pending` or `failed` jobs, never `running` ones; "done" needs the latest registered version's hash to equal the hash recomputed inside the function from the trusted tables (nothing sent by the browser is trusted), otherwise it returns 0 and changes nothing; a person's failure always stores the fixed sentence "The PDF could not be made.". The service role (retry job) keeps `running` jobs and its own error text (cut to 300, no booking data).
+- **Unchanged:** version numbers, content hashes and the stale-content checks of `register_pdf_version`; finishing a job never creates or changes a version.
+- **Still true:** any active user may press Regenerate PDF or mark a pending or failed job failed for any booking. That is the same trust level as the rest of the app, and it only causes an extra retry. Tested locally only; no browser or production behaviour was tested.
