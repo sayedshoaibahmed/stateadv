@@ -1,6 +1,6 @@
 # M2 — Database migration review guide
 
-**Status (updated 2026-11-12): migrations 01–21 are APPLIED to the dev Supabase project and verified** (evidence: `HOSTED_VERIFICATION.md` sections 0h, 0i, 0k and 0l). The text below was written before 11–18 were applied and is kept as the review record; where it says "not applied", read "applied on 2026-11-11 after the owner's approval".
+**Status (updated 2026-11-12): migrations 01–22 are APPLIED to the dev Supabase project and verified** (evidence: `HOSTED_VERIFICATION.md` sections 0h, 0i, 0k, 0l and 0m). The text below was written before 11–18 were applied and is kept as the review record; where it says "not applied", read "applied on 2026-11-11 after the owner's approval".
 
 **Updated 2026-11-11:** your decisions O7 (verified own-email change), Q9a (correction files) and D5 (reversal protection) are now in the migration files. Section 10 shows exactly what changed, file by file. Sections 1-9 describe the current files.
 
@@ -493,5 +493,7 @@ Applied alone after preflight P1-P9, a dry run and a verified safety export. Hos
 
 Applied alone after preflight P1-P9, a dry run and a verified safety export. Hosted afterwards equals a local rebuild in every catalog category (97 functions, 46 callable by signed-in users, 0 by anon/PUBLIC); the three function bodies equal the migration source; `booking_financials` (rule D1) was not touched and guest Pending sums over all bookings. Not yet tested: a real authenticated call, and the screens in a browser against hosted.
 
-## 19. Migration 22: payment and refund lists (local only, awaiting approval)
+## 19. Migration 22: payment and refund lists, APPLIED to hosted 2026-11-12 and verified (HOSTED_VERIFICATION 0m)
 `payment_list(...)` and `refund_list(...)` return one page (at most 100 rows) of payments or refunds with the booking code, guest, resort, method and app, reference, date, status, self-approved flag, who recorded it and who decided it, the reasons, the number of visible files and the total number of matches. Filters (NULL = off): search (number, Booking ID, guest, reference), status, method, app, resort, booking, date range on the record's own date or on the date it was entered (IST), recorded by, only self-approved, and `p_oldest_first` for the approval queue. Security: SECURITY INVOKER (row-level security of every table still applies), refuse a caller who is not an active user (NOT_ALLOWED), no dynamic SQL, search text escaped with `like_safe`. They show amounts exactly as stored and never add, subtract or reinterpret them; every balance on the screens still comes from `booking_financials` (rule D1, unchanged). Tests PGL-01..16 and SEC-04. No existing object changes.
+
+Applied alone after the owner's explicit approval, preflight P1-P9, a dry run and a verified safety export. Hosted afterwards equals a local rebuild in all 14 catalog categories (99 functions, 48 callable by signed-in users, 0 by anon/PUBLIC); both function bodies equal the migration source; `booking_financials` (rule D1) and every existing financial function are unchanged. Not yet tested: a real authenticated call of the two functions, and the M5 screens in a browser against hosted (M9 checklist in PROGRESS.md).

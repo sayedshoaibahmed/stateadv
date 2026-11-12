@@ -78,7 +78,7 @@ Needs from the owner: GitHub access (private repo), a Supabase account for a **f
 5. Payments and Refunds list pages. Money box from `booking_financials`.
 - **Tests:** PAY-*, APR-*, REF-*, FIN-* via the UI, concurrency.
 - **Exit:** the full payment and refund life-cycle works, and every figure matches the golden fixture.
-- **Status (2026-11-12):** built and tested locally (not committed); needs migration 22 on hosted; browser E2E waits for the deferred QA. See PROGRESS.md.
+- **Status (2026-11-12):** built, committed (`1eb65b5`) and pushed; migration 22 applied to hosted and verified (read-only); browser E2E and authenticated hosted calls wait for the deferred QA (M9 checklist in PROGRESS.md).
 
 ## M6 — Automatic PDF Generation
 1. Template (all PRD §5.14 content, Noto Sans ₹, logo, disclaimer, version).

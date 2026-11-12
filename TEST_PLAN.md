@@ -435,7 +435,7 @@ The earlier AMT-*, CO-*, BID-*, PLN-*, EDT-* and CAN-* database tests (M2) are u
 
 On hosted (read-only, 2026-11-12): definitions, SECURITY INVOKER, search_path, grants, counts (97 / 46 / 0), catalog equality and anonymous refusal of the three functions were checked. **Not done:** an authenticated call against hosted, and E2E or visual checks of the M4 screens (deferred browser QA: after M8, final QA in M9).
 
-## 2.23 M5: payments, refunds, approvals and proofs (tests run locally; migration 22 not applied to hosted)
+## 2.23 M5: payments, refunds, approvals and proofs (tests run locally; migration 22 applied to hosted 2026-11-12, see HOSTED_VERIFICATION 0m)
 | Tests | File | What they prove |
 |---|---|---|
 | PGL-01..16 (16) | `tests/db/payment-refund-lists.test.ts` | `payment_list` and `refund_list` on six payments and three refunds with every value written down: rows, order, status, self-approved flag, who recorded and decided, file counts (a hidden file is not counted); the amounts listed are the raw table amounts; rejected and reversed rows are listed with their status; all filters (status, method, app, resort, booking, payment or entry date, recorded by, self-approved); search with wildcards neutralised; paging and totals; the approval-queue order; bad input refused; anonymous, signed-out, unknown, service-role and switched-off callers refused; Owners and Managers see the same rows; reading changes nothing |
@@ -446,3 +446,7 @@ On hosted (read-only, 2026-11-12): definitions, SECURITY INVOKER, search_path, g
 | PV-01..20 | `tests/unit/payment-views.test.ts` | list, detail, approval buttons by status, self-approved note, correction tags, hide only on waiting, file tools, Add / Change forms, 44 px fields |
 | SEC-04 | `tests/db/schema-security.test.ts` | the two new functions are on the exact allow-list (48 callable by signed-in users, 99 functions) |
 The earlier PAY-*, APR-*, REF-*, FIN-* and CON-* database tests (M2) are unchanged and still pass. **Targeted financial mutation checks** for M5 are listed in the M5 report. **E2E in a browser** (including a real upload to private storage) is not done: it waits for the deferred browser QA (after M8, final QA in M9).
+
+On hosted (read-only, 2026-11-12): definitions, SECURITY INVOKER, search_path, grants, counts (99 / 48 / 0), catalog equality in all 14 categories, unchanged data and financial logic, and anonymous refusal (HTTP 401) of the two list functions were checked. **Not done:** an authenticated call against hosted, and E2E or visual checks of the M5 screens.
+
+**M9 browser QA checklist for M5 (after M8; none of it done yet):** signed-in `payment_list` / `refund_list` calls against hosted; Add Payment and Add Refund browser workflows; payment and refund approval, rejection and reversal; private proof upload and viewing; signed URL and CSP compatibility; the proof correction workflow; layouts at 360 / 768 / 1280. The full wording is in PROGRESS.md.
