@@ -101,6 +101,7 @@ Needs from the owner: GitHub access (private repo), a Supabase account for a **f
 2. Report pages, CSV + PDF export.
 - **Tests:** COL-*, golden fixture for every report, Excel/Sheets opening.
 - **Exit:** all reports match the golden fixture.
+**Status 2026-11-14:** built and tested locally; not committed; migration 25 (eleven read-only functions) not applied to hosted (nor is 24); no browser test; PDF limited to 1,000 rows (see PROGRESS M8).
 
 ## M9 — Testing and Security
 1. Full TEST_PLAN run, and fill coverage gaps (≥ 90% on money/date/calc; every RPC covered by pgTAP).

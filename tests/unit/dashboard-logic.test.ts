@@ -310,7 +310,7 @@ describe("menu", () => {
   it("unbuilt pages are not links; built ones are", () => {
     const ready = MENU.filter((m) => m.ready).map((m) => m.key);
     // M4 built Bookings, Add Booking and Guests; M5 built Waiting for Approval, Payments and Refunds;
-    // M7 built Calendar, Old Records and Activity; Collection Reports stays "Soon" until M8
+    // M7 built Calendar, Old Records and Activity; M8 built Collection Reports
     expect(ready.sort()).toEqual([
       "activity",
       "add",
@@ -324,6 +324,7 @@ describe("menu", () => {
       "payments",
       "people",
       "refunds",
+      "reports",
       "resorts",
       "settings",
     ]);
@@ -352,7 +353,7 @@ describe("menu", () => {
     expect(activeKey("/calendar/2026-03-10")).toBe("calendar");
     expect(activeKey("/old-records")).toBe("old");
     expect(activeKey("/activity")).toBe("activity");
-    expect(activeKey("/reports")).toBeNull(); // M8
+    expect(activeKey("/reports")).toBe("reports");
     expect(activeKey("/dashboardx")).toBeNull();
   });
   it("badge text and resort filter pages", () => {

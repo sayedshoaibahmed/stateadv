@@ -98,7 +98,7 @@ export const MENU: readonly NavItem[] = [
     label: "Collection Reports",
     href: "/reports",
     icon: "reports",
-    ready: false,
+    ready: true,
   },
   {
     key: "old",

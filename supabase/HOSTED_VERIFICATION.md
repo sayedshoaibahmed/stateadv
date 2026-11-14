@@ -285,3 +285,6 @@ Nothing else happened: no other migration, no user created, no password or role 
 
 ## 0o. Migration 24 (calendar, old records, activity): NOT APPLIED to hosted
 Nothing about migration 24 has been done on hosted. When approved and applied, verify read-only: 24 history rows; 111 functions, 53+4 = 57 authenticated-callable, 110 service-role-callable, 0 anon/PUBLIC (projections from the local rebuild); the four functions SECURITY INVOKER with an empty `search_path`, executable by `authenticated` only; their bodies equal the migration source; catalog equal to the local rebuild in all 14 categories; tables / policies / triggers unchanged (21 / 26 / 105); row counts unchanged. Then an authenticated call of each function (needs a login) and the M7 checklist in PROGRESS.md.
+
+## 0p. Migration 25 (reports): NOT APPLIED to hosted
+Written 2026-11-14 (`20261111000025_reports.sql`, SHA-256 `e43bc78b80e16e743b8466638b3e2c2ac768570460413771d772875cd80b8b66`). Migration 24 is also still not applied. Nothing about 25 has been run on the hosted project. After approval to apply (24 first, then 25) verify: the eleven functions exist, callable by authenticated and not by anon or PUBLIC, tables / policies / triggers unchanged, and one authenticated call of each function.

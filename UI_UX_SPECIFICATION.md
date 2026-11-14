@@ -162,6 +162,7 @@ Day page `/calendar/[date]` tabs: Check-ins · Check-outs · Staying · Payments
 
 ### 3.13 Collection Reports `/reports`
 Report cards per PRD §5.16 (including Refund Report and Cancellation Report). Each report: filters → summary row → table → [Download CSV] [Download PDF]. The header states the date and rule used, e.g. "Collection by payment date · Approved payments only · Refunds by refund date · IST".
+*Built in M8:* `/reports` lists ten reports (Collection, Resort-wise Collection, Payment Methods, Bookings, Pending Amount, Waiting for Approval, Refunds, Cancellations, Expected Adjustments, Manual Adjustments); `/reports/[report]` has the report's own filters (dates with presets, resort, and the choices that report needs), cards with the totals of the whole filter, a table from a tablet up and cards on a phone, 25 rows a page, and Download CSV / Download PDF with the same choices. The PDF is limited to 1,000 rows; it has no page numbers.
 
 ### 3.14 Old Records `/old-records`
 Advanced search across bookings, payments and refunds for any date range, with links to screenshots, history and PDF versions.

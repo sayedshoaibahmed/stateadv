@@ -55,6 +55,7 @@ The booking ID needs no env var: the prefix is each resort's code, stored in the
 1. Import the GitHub repo (Next.js preset, Node LTS).
 2. Env vars separately for Production and Preview (Preview → staging Supabase).
 3. Function region Mumbai. PDF routes run on the default Node.js runtime (no `runtime` export — not allowed with Cache Components); set `maxDuration` 30–60 s.
+   The report file route `/api/export/[report]` (CSV and PDF) exports `maxDuration = 120`, i.e. it asks for a 120-second maximum execution time; what is actually granted depends on the deployed Vercel plan and configuration (check the plan and Fluid compute setting in M10, then download a 100,000-row CSV on the real project).
 4. `vercel.json` cron: `/api/cron/pdf-retry` every 10 min (`CRON_SECRET`).
 5. Domain + HTTPS. Deployment Protection on Preview.
 

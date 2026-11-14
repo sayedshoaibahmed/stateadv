@@ -2280,6 +2280,284 @@ export type Database = {
         Args: { p_expected_version: number; p_id: string; p_reason: string };
         Returns: Json;
       };
+      report_bookings: {
+        Args: {
+          p_date_field?: string;
+          p_from?: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_resort?: string;
+          p_status?: Database["public"]["Enums"]["booking_status"];
+          p_to?: string;
+        };
+        Returns: {
+          booking_code: string;
+          booking_date: string;
+          booking_id: string;
+          check_in_at: string;
+          check_out_at: string;
+          co_category_name: string;
+          co_name: string;
+          due_paise: number;
+          final_paise: number;
+          guest_name: string;
+          pax: number;
+          pricing_method: string;
+          resort_id: string;
+          status: Database["public"]["Enums"]["booking_status"];
+          total_due_paise: number;
+          total_final_paise: number;
+          total_pax: number;
+          total_rows: number;
+        }[];
+      };
+      report_cancellations: {
+        Args: {
+          p_from?: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_resort?: string;
+          p_status?: Database["public"]["Enums"]["booking_status"];
+          p_to?: string;
+        };
+        Returns: {
+          approved_paise: number;
+          booking_code: string;
+          booking_id: string;
+          cancellation_date: string;
+          charge_change_reason: string;
+          charge_paise: number;
+          check_in_at: string;
+          guest_name: string;
+          original_paise: number;
+          reason: string;
+          refund_due_paise: number;
+          resort_id: string;
+          status: Database["public"]["Enums"]["booking_status"];
+          total_charge_paise: number;
+          total_original_paise: number;
+          total_refund_due_paise: number;
+          total_rows: number;
+        }[];
+      };
+      report_check: {
+        Args: { p_from: string; p_max_days?: number; p_to: string };
+        Returns: undefined;
+      };
+      report_collection: {
+        Args: {
+          p_from: string;
+          p_group?: string;
+          p_resort?: string;
+          p_split?: string;
+          p_to: string;
+        };
+        Returns: {
+          approved_count: number;
+          approved_paise: number;
+          method: string;
+          net_paise: number;
+          period_end: string;
+          period_start: string;
+          refunds_count: number;
+          refunds_paise: number;
+          resort_id: string;
+          resort_name: string;
+          total_approved_paise: number;
+          total_net_paise: number;
+          total_refunds_paise: number;
+          total_rows: number;
+          total_waiting_paise: number;
+          waiting_count: number;
+          waiting_paise: number;
+        }[];
+      };
+      report_expected_adjustments: {
+        Args: {
+          p_from?: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_resort?: string;
+          p_source?: Database["public"]["Enums"]["adjustment_source"];
+          p_to?: string;
+        };
+        Returns: {
+          adjustment_date: string;
+          adjustment_id: string;
+          amount_paise: number;
+          booking_code: string;
+          booking_id: string;
+          created_by_name: string;
+          guest_name: string;
+          reason: string;
+          resort_id: string;
+          source: Database["public"]["Enums"]["adjustment_source"];
+          total_paise: number;
+          total_rows: number;
+        }[];
+      };
+      report_expected_vs_actual: {
+        Args: { p_from: string; p_resort?: string; p_to: string };
+        Returns: {
+          approved_paise: number;
+          difference_paise: number;
+          expected_adjustments_paise: number;
+          expected_paise: number;
+          is_active: boolean;
+          net_paise: number;
+          originally_expected_paise: number;
+          refunds_paise: number;
+          resort_id: string;
+          resort_name: string;
+          total_approved_paise: number;
+          total_difference_paise: number;
+          total_expected_adjustments_paise: number;
+          total_expected_paise: number;
+          total_net_paise: number;
+          total_originally_expected_paise: number;
+          total_refunds_paise: number;
+          total_rows: number;
+          total_waiting_paise: number;
+          waiting_paise: number;
+        }[];
+      };
+      report_manual_adjustments: {
+        Args: {
+          p_from?: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_resort?: string;
+          p_to?: string;
+        };
+        Returns: {
+          adjustment_paise: number;
+          adjustment_reason: string;
+          booking_code: string;
+          booking_date: string;
+          booking_id: string;
+          charge_change_reason: string;
+          charge_paise: number;
+          discount_paise: number;
+          final_paise: number;
+          guest_name: string;
+          resort_id: string;
+          status: Database["public"]["Enums"]["booking_status"];
+          total_adjustment_paise: number;
+          total_paise: number;
+          total_rows: number;
+        }[];
+      };
+      report_payment_methods: {
+        Args: { p_from: string; p_resort?: string; p_to: string };
+        Returns: {
+          approved_count: number;
+          approved_paise: number;
+          method: string;
+          net_paise: number;
+          provider_name: string;
+          refunds_count: number;
+          refunds_paise: number;
+          total_approved_paise: number;
+          total_net_paise: number;
+          total_refunds_paise: number;
+          total_rows: number;
+          total_waiting_paise: number;
+          waiting_count: number;
+          waiting_paise: number;
+        }[];
+      };
+      report_pending: {
+        Args: {
+          p_as_of?: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_resort?: string;
+        };
+        Returns: {
+          approved_paise: number;
+          as_of: string;
+          booking_code: string;
+          booking_id: string;
+          check_in_at: string;
+          due_paise: number;
+          guest_mobile: string;
+          guest_name: string;
+          overdue_paise: number;
+          pending_paise: number;
+          resort_id: string;
+          status: Database["public"]["Enums"]["booking_status"];
+          total_overdue_paise: number;
+          total_pending_paise: number;
+          total_rows: number;
+          total_verified_remaining_paise: number;
+          verified_remaining_paise: number;
+          waiting_paise: number;
+        }[];
+      };
+      report_refunds: {
+        Args: {
+          p_from?: string;
+          p_limit?: number;
+          p_method?: Database["public"]["Enums"]["payment_method"];
+          p_offset?: number;
+          p_resort?: string;
+          p_status?: Database["public"]["Enums"]["approval_status"];
+          p_to?: string;
+        };
+        Returns: {
+          amount_paise: number;
+          booking_code: string;
+          booking_id: string;
+          entered_on: string;
+          guest_name: string;
+          method: string;
+          provider_name: string;
+          reason: string;
+          recorded_by_name: string;
+          refund_code: string;
+          refund_date: string;
+          refund_id: string;
+          resort_id: string;
+          status: Database["public"]["Enums"]["approval_status"];
+          total_approved_paise: number;
+          total_rejected_paise: number;
+          total_reversed_paise: number;
+          total_rows: number;
+          total_waiting_paise: number;
+        }[];
+      };
+      report_waiting: {
+        Args: {
+          p_date_type?: string;
+          p_from?: string;
+          p_kind?: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_resort?: string;
+          p_to?: string;
+        };
+        Returns: {
+          age_days: number;
+          amount_paise: number;
+          booking_code: string;
+          booking_id: string;
+          entered_on: string;
+          guest_name: string;
+          kind: string;
+          method: string;
+          provider_name: string;
+          record_code: string;
+          record_date: string;
+          record_id: string;
+          recorded_by_name: string;
+          resort_id: string;
+          total_payments_count: number;
+          total_payments_paise: number;
+          total_refunds_count: number;
+          total_refunds_paise: number;
+          total_rows: number;
+        }[];
+      };
       request_pdf_regeneration: {
         Args: { p_booking: string };
         Returns: number;
