@@ -282,3 +282,6 @@ Adds eight functions and nothing else: `pdf_actor`, `pdf_booking_data`, `pdf_has
 Safety-export limitations still apply: it holds no Auth user records and no Storage file contents and is not a complete disaster-recovery backup.
 
 Nothing else happened: no other migration, no user created, no password or role changed, no deployment, no environment-variable or secret change, no change to authentication or storage settings.
+
+## 0o. Migration 24 (calendar, old records, activity): NOT APPLIED to hosted
+Nothing about migration 24 has been done on hosted. When approved and applied, verify read-only: 24 history rows; 111 functions, 53+4 = 57 authenticated-callable, 110 service-role-callable, 0 anon/PUBLIC (projections from the local rebuild); the four functions SECURITY INVOKER with an empty `search_path`, executable by `authenticated` only; their bodies equal the migration source; catalog equal to the local rebuild in all 14 categories; tables / policies / triggers unchanged (21 / 26 / 105); row counts unchanged. Then an authenticated call of each function (needs a login) and the M7 checklist in PROGRESS.md.

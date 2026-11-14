@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 import { buildTimeline, type AuditEvent } from "@/lib/bookings/history";
 import { listArgs, type BookingFilter } from "@/lib/bookings/list";
+import type { ResortInfo } from "@/lib/resorts";
 
 /**
  * Everything the booking, guest and search screens read. All reads run as the signed-in user (their own login), so
@@ -484,6 +485,24 @@ export async function loadProviders() {
     if (error || !data) throw new Error("providers");
     return data;
   });
+}
+
+/** Every resort, in name order, in ONE read (for screens that need both the names and the choices). */
+export async function loadResorts(): Promise<ResortInfo[]> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("resorts")
+      .select("id, name, is_active")
+      .order("name");
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      active: r.is_active,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function loadResortNames(): Promise<Map<string, string>> {

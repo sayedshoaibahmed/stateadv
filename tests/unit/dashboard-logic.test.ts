@@ -310,13 +310,16 @@ describe("menu", () => {
   it("unbuilt pages are not links; built ones are", () => {
     const ready = MENU.filter((m) => m.ready).map((m) => m.key);
     // M4 built Bookings, Add Booking and Guests; M5 built Waiting for Approval, Payments and Refunds;
-    // the rest stay "Soon" until their own step
+    // M7 built Calendar, Old Records and Activity; Collection Reports stays "Soon" until M8
     expect(ready.sort()).toEqual([
+      "activity",
       "add",
       "approvals",
       "bookings",
+      "calendar",
       "dashboard",
       "guests",
+      "old",
       "partners",
       "payments",
       "people",
@@ -345,7 +348,11 @@ describe("menu", () => {
     expect(activeKey("/approvals")).toBe("approvals");
     expect(activeKey("/payments/abc/edit")).toBe("payments");
     expect(activeKey("/refunds/new")).toBe("refunds");
-    expect(activeKey("/calendar")).toBeNull(); // not built yet
+    expect(activeKey("/calendar")).toBe("calendar");
+    expect(activeKey("/calendar/2026-03-10")).toBe("calendar");
+    expect(activeKey("/old-records")).toBe("old");
+    expect(activeKey("/activity")).toBe("activity");
+    expect(activeKey("/reports")).toBeNull(); // M8
     expect(activeKey("/dashboardx")).toBeNull();
   });
   it("badge text and resort filter pages", () => {
@@ -354,6 +361,8 @@ describe("menu", () => {
     expect(badgeText(7)).toBe("7");
     expect(badgeText(100)).toBe("99+");
     expect(showsResortFilter("/dashboard")).toBe(true);
+    expect(showsResortFilter("/calendar")).toBe(true);
+    expect(showsResortFilter("/calendar/2026-03-10")).toBe(true);
     expect(showsResortFilter("/users")).toBe(false);
   });
 });

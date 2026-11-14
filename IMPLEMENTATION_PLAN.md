@@ -89,6 +89,7 @@ Needs from the owner: GitHub access (private repo), a Supabase account for a **f
 - **Exit:** PDFs are created on every listed event, de-duplicated, and old versions are downloadable.
 
 ## M7 — Calendar and Historical Records
+**Status 2026-11-14:** built and tested locally; not committed; migration 24 (four read-only functions) not applied to hosted; no browser test; PostgreSQL 17 suites not run locally (see PROGRESS). Dashboard = M3 (done) and Reports = M8 (not started); neither is part of M7.
 1. Calendar (month/week/agenda) and day page (check-ins, outs, staying, received, refunds, due).
 2. Old Records search. Activity page (incl. account actions) with diffs.
 3. Backdated entries shown clearly (payment/refund date vs entered at).

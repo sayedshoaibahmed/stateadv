@@ -80,3 +80,27 @@ export function AdjustedTag({ className }: { className?: string }) {
     </span>
   );
 }
+
+/**
+ * A payment or refund whose date was written as an earlier day than the day it was typed in (backdating is allowed;
+ * FR-CAL-3). Both dates are given so the reason for the tag is never a mystery. Small and grey.
+ */
+export function BackdatedTag({
+  entered,
+  className,
+}: {
+  entered?: string | null;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md bg-adjusted-soft px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-adjusted",
+        className,
+      )}
+      title={entered ? `Entered on ${entered}` : "Entered on a later day"}
+    >
+      Backdated
+    </span>
+  );
+}

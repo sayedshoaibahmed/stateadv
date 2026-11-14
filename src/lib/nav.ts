@@ -84,7 +84,7 @@ export const MENU: readonly NavItem[] = [
     label: "Calendar",
     href: "/calendar",
     icon: "calendar",
-    ready: false,
+    ready: true,
   },
   {
     key: "guests",
@@ -105,7 +105,7 @@ export const MENU: readonly NavItem[] = [
     label: "Old Records",
     href: "/old-records",
     icon: "old",
-    ready: false,
+    ready: true,
   },
   {
     key: "resorts",
@@ -126,7 +126,7 @@ export const MENU: readonly NavItem[] = [
     label: "Activity",
     href: "/activity",
     icon: "activity",
-    ready: false,
+    ready: true,
   },
   {
     key: "settings",
@@ -168,7 +168,10 @@ export function mobileItems(): NavItem[] {
 }
 
 /** The pages where the resort filter in the top bar is used (more are added as pages learn to use it). */
-export const RESORT_FILTER_PATHS: readonly string[] = ["/dashboard"];
+export const RESORT_FILTER_PATHS: readonly string[] = [
+  "/dashboard",
+  "/calendar",
+];
 
 export function showsResortFilter(pathname: string): boolean {
   return RESORT_FILTER_PATHS.some(

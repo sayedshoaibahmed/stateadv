@@ -152,6 +152,7 @@ All records with filters: status, method, provider, resort, payment/refund date 
 ### 3.11 Calendar `/calendar`
 Month view (desktop), agenda/week view (mobile). Resort filter, Today button, no limit on past/future navigation. Day cells show check-ins/outs and due/collected amounts.
 Day page `/calendar/[date]` tabs: Check-ins · Check-outs · Staying · Payments Received · Refunds · Payments Due, each with quick actions. "Add Booking for this date".
+*Built in M7:* the month is a 7-column table (Monday first) from a tablet up, and a list of only the busy days on a phone; the resort filter is the one in the top bar; a day cell shows Check-in, Check-out, Staying, Due, Collected, Waiting and Refunds in words and colours that match the rest of the app; the day page has previous/next day and counts on the tabs; quick actions are links (Open booking, Add Payment while money is pending, Open payment, Open refund); a payment or refund dated earlier than the day it was typed in carries a "Backdated" tag and both dates. "Add Booking" at the top of the month page fills in today while the month shown is this month, and the first day of the month shown otherwise. A payment or refund dated earlier than the day it was typed in carries the same "Backdated" tag in the Payments and Refunds lists and pages. There is no separate week screen.
 
 ### 3.12 Guests, and Settings → Resorts / C/O (built in M2: `/settings`, `/settings/resorts`, `/settings/co`)
 - Guests: search, detail page with booking history and totals.
@@ -164,9 +165,11 @@ Report cards per PRD §5.16 (including Refund Report and Cancellation Report). E
 
 ### 3.14 Old Records `/old-records`
 Advanced search across bookings, payments and refunds for any date range, with links to screenshots, history and PDF versions.
+*Built in M7:* one list of the three kinds, newest first; the dates can be searched by "the date on the record", "the day it was typed in", "check-in date of the booking", "check-out date of the booking" or "cancellation date" (cancelled and no-show bookings only), and each row says which date matched; payments and refunds are found through the date of their booking; a search box, a resort choice and ticks for the kinds; each row links to its page and shows PDF versions (bookings) or files (payments, refunds).
 
 ### 3.15 Activity `/activity`
 Audit timeline with filters (user, action, record type, resort, date), including user-account actions. Each entry expands to show old → new values.
+*Built in M7:* a plain sentence per entry, the time in IST, a link to the record, "Activity no. 41" (a number to quote when asking about an entry), a reason when there is one, and a "What changed" table (What / Before / After, or What / Filled in for a new record) that hides internal numbers; a tick for "only files added after approval".
 
 ### 3.16 Settings → Users `/settings/users` (Q10)
 - Visible to every user.

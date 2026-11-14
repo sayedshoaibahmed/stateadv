@@ -62,6 +62,17 @@ export function nightsBetween(checkIn: Date, checkOut: Date): number {
   return daysBetween(toIstDate(checkIn), toIstDate(checkOut));
 }
 
+/**
+ * A payment or refund is BACKDATED when the date written on it is earlier than the IST day it was typed in (backdating
+ * is allowed; FR-CAL-3). `enteredAt` is the moment it was recorded. Anything unreadable is "not backdated".
+ */
+export function isBackdated(date: IsoDate, enteredAt: Date | string): boolean {
+  const entered =
+    typeof enteredAt === "string" ? new Date(enteredAt) : enteredAt;
+  if (!isIsoDate(date) || Number.isNaN(entered.getTime())) return false;
+  return date < toIstDate(entered);
+}
+
 /** Year of a business date: "2026-12-30" → 2026 (Booking ID year, Q4). */
 export function yearOf(value: IsoDate): number {
   isoDateToUtcMs(value);

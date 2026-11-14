@@ -134,6 +134,7 @@ describe("Row Level Security and privileges (SEC-01..05)", () => {
     // means adding it here in the same change, after checking its authorisation rules.
     expect(auth.map((r) => r.proname)).toEqual([
       "active_owner_count",
+      "activity_list",
       "add_correction_files",
       "add_payment",
       "add_proofs",
@@ -142,6 +143,8 @@ describe("Row Level Security and privileges (SEC-01..05)", () => {
       "approve_refund",
       "booking_list",
       "booking_overdue",
+      "calendar_day",
+      "calendar_month",
       "cancel_booking",
       "change_cancellation_charge",
       "complete_password_change",
@@ -157,6 +160,7 @@ describe("Row Level Security and privileges (SEC-01..05)", () => {
       "is_active_user",
       "like_safe",
       "normalize_mobile",
+      "old_records_search",
       "payment_list",
       "pdf_booking_data",
       "pdf_prepare",

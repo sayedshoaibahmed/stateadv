@@ -4,7 +4,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { DateText } from "@/components/app/date-text";
 import { Money, type MoneyTone } from "@/components/app/money";
 import { EmptyState, ErrorState } from "@/components/app/states";
-import { SelfApprovedTag, StatusBadge } from "@/components/app/status-badge";
+import {
+  BackdatedTag,
+  SelfApprovedTag,
+  StatusBadge,
+} from "@/components/app/status-badge";
 import { ItemActions, FileAdder } from "@/components/app/payments/item-actions";
 import {
   ProofViewer,
@@ -20,6 +24,7 @@ import {
   type MoneyFilter,
 } from "@/lib/payments/list";
 import { STATUS_WORDS, type Kind, type Status } from "@/lib/payments/rules";
+import { isBackdated } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +44,16 @@ export const tone = (kind: Kind, status: Status): MoneyTone =>
           : status === "rejected"
             ? "rejected"
             : "neutral";
+
+/** "Backdated, entered on 20 Mar 2026": shown when the date on a payment or refund is earlier than the day it was typed in. */
+function BackdatedNote({ r }: { r: MoneyRow }) {
+  if (!isBackdated(r.date, r.recordedAt)) return null;
+  return (
+    <span className="block text-xs text-muted-foreground">
+      <BackdatedTag /> entered <DateText value={r.recordedAt} />
+    </span>
+  );
+}
 
 export function methodText(
   r: Pick<MoneyRow, "method" | "providerName" | "providerOther">,
@@ -346,6 +361,7 @@ export function MoneyTable({
                 <td className="text-left">{methodText(r)}</td>
                 <td className="text-left">
                   <DateText value={r.date} />
+                  <BackdatedNote r={r} />
                 </td>
                 <td className="text-left">{r.recordedByName ?? "—"}</td>
                 <td className="text-left">
@@ -397,6 +413,7 @@ export function MoneyTable({
               {resortNames.get(r.resortId) ?? "—"} · by{" "}
               {r.recordedByName ?? "—"}
             </p>
+            <BackdatedNote r={r} />
           </li>
         ))}
       </ul>
@@ -648,6 +665,7 @@ export function MoneyDetailBody({
         <Fact label={kind === "payment" ? "Payment date" : "Refund date"}>
           <DateText value={r.date} />
           {r.time ? ` · ${r.time.slice(0, 5)}` : ""}
+          <BackdatedNote r={r} />
         </Fact>
         <Fact label="Reference number">{r.reference ?? "—"}</Fact>
         <Fact label="Booking">

@@ -1646,6 +1646,41 @@ export type Database = {
     };
     Functions: {
       active_owner_count: { Args: Record<PropertyKey, never>; Returns: number };
+      activity_list: {
+        Args: {
+          p_action?: string;
+          p_actor?: string;
+          p_booking?: string;
+          p_corrections?: boolean;
+          p_from?: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_record_type?: string;
+          p_resort?: string;
+          p_to?: string;
+        };
+        Returns: {
+          action: string;
+          actor_id: string;
+          actor_name: string;
+          booking_code: string;
+          booking_id: string;
+          changed_fields: string[];
+          id: number;
+          new_values: Json;
+          occurred_at: string;
+          old_values: Json;
+          reason: string;
+          record_code: string;
+          record_id: string;
+          record_type: string;
+          resort_id: string;
+          table_name: string;
+          target_user_id: string;
+          target_user_name: string;
+          total_rows: number;
+        }[];
+      };
       add_correction_files: {
         Args: {
           p_files: Json;
@@ -1757,6 +1792,45 @@ export type Database = {
           base_paise: number;
           final_paise: number;
           nights: number;
+        }[];
+      };
+      calendar_day: {
+        Args: { p_date: string; p_resort?: string };
+        Returns: {
+          amount_paise: number;
+          backdated: boolean;
+          booking_code: string;
+          booking_id: string;
+          booking_status: Database["public"]["Enums"]["booking_status"];
+          check_in_at: string;
+          check_out_at: string;
+          entered_on: string;
+          guest_mobile: string;
+          guest_name: string;
+          kind: string;
+          kind_total: number;
+          label: string;
+          method: string;
+          pax: number;
+          pending_paise: number;
+          record_code: string;
+          record_date: string;
+          record_id: string;
+          record_status: Database["public"]["Enums"]["approval_status"];
+          resort_id: string;
+        }[];
+      };
+      calendar_month: {
+        Args: { p_month: number; p_resort?: string; p_year: number };
+        Returns: {
+          check_ins: number;
+          check_outs: number;
+          collected_paise: number;
+          day_date: string;
+          due_paise: number;
+          refunds_paise: number;
+          staying: number;
+          waiting_paise: number;
         }[];
       };
       cancel_booking: {
@@ -1973,6 +2047,36 @@ export type Database = {
         }[];
       };
       normalize_mobile: { Args: { p_mobile: string }; Returns: string };
+      old_records_search: {
+        Args: {
+          p_basis?: string;
+          p_from?: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_q?: string;
+          p_resort?: string;
+          p_to?: string;
+          p_types?: string[];
+        };
+        Returns: {
+          amount_paise: number;
+          backdated: boolean;
+          booking_code: string;
+          booking_id: string;
+          entered_on: string;
+          file_count: number;
+          guest_mobile: string;
+          guest_name: string;
+          matched_date: string;
+          record_code: string;
+          record_date: string;
+          record_id: string;
+          record_type: string;
+          resort_id: string;
+          status: string;
+          total_rows: number;
+        }[];
+      };
       optional_reason: { Args: { p_reason: string }; Returns: string };
       parse_files: {
         Args: { p_files: Json; p_max?: number; p_prefix: string };

@@ -3,6 +3,7 @@ import {
   daysBetween,
   formatDisplayDate,
   formatDisplayTime,
+  isBackdated,
   isIsoDate,
   istDateTimeToInstant,
   nightsBetween,
@@ -89,5 +90,31 @@ describe("display formats (UI spec §6)", () => {
 describe("test environment", () => {
   it("runs with a non-IST machine time zone (proves IST logic is explicit)", () => {
     expect(new Date("2026-06-01T00:00:00Z").getTimezoneOffset()).not.toBe(-330);
+  });
+});
+
+describe("backdated payments and refunds (BD-01..)", () => {
+  it("BD-01: the date written is earlier than the IST day it was typed in", () => {
+    expect(isBackdated("2026-03-11", "2026-03-20T03:30:00Z")).toBe(true);
+    expect(isBackdated("2026-03-20", "2026-03-20T03:30:00Z")).toBe(false); // same day
+    expect(isBackdated("2026-03-21", "2026-03-20T03:30:00Z")).toBe(false); // future dates are not allowed, but are not "backdated"
+  });
+  it("BD-02: the IST day decides, not the UTC day: 18:30 UTC is already the next day in India", () => {
+    // typed in at 00:00 IST on 21 March (= 18:30 UTC on 20 March)
+    expect(isBackdated("2026-03-20", "2026-03-20T18:30:00Z")).toBe(true);
+    // 23:59:59 IST on 20 March (= 18:29:59 UTC)
+    expect(isBackdated("2026-03-20", "2026-03-20T18:29:59Z")).toBe(false);
+    // 01:00 IST on 20 March is still 19 March in UTC
+    expect(isBackdated("2026-03-20", "2026-03-19T19:30:00Z")).toBe(false);
+  });
+  it("BD-03: works with a Date, across year ends, and never throws on bad input", () => {
+    expect(isBackdated("2025-12-31", new Date("2026-01-01T00:00:00Z"))).toBe(
+      true,
+    );
+    expect(isBackdated("2026-01-01", new Date("2026-01-01T00:00:00Z"))).toBe(
+      false,
+    );
+    expect(isBackdated("not a date", "2026-03-20T03:30:00Z")).toBe(false);
+    expect(isBackdated("2026-03-20", "garbage")).toBe(false);
   });
 });

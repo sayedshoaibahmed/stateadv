@@ -124,6 +124,32 @@ describe("payments and refunds list screens (PV-01..)", () => {
     expect(out).toContain('href="/bookings/b1"');
     expect(t).toContain("4 payments");
   });
+  it("PV-01b: a payment or refund dated before the day it was typed in carries the Backdated tag with the day it was entered, in the table and the cards; others do not", () => {
+    const out = list([
+      row({ date: "2026-11-05", recordedAt: "2026-11-10T04:00:00Z" }), // typed in on the 10th (IST), dated the 5th
+      row({
+        id: "p2",
+        code: "AAA-2026-000001-P2",
+        date: "2026-11-10",
+        recordedAt: "2026-11-10T04:00:00Z",
+      }),
+    ]);
+    expect(out.match(/Backdated/g)).toHaveLength(2); // once in the table, once in the card, for the first row only
+    expect(text(out)).toContain("Backdated entered 10 Nov 2026");
+    const none = list([
+      row({ date: "2026-11-10", recordedAt: "2026-11-10T04:00:00Z" }),
+    ]);
+    expect(none).not.toContain("Backdated");
+  });
+  it("PV-01c: the IST day decides: typed in at 00:30 IST on the 11th (still the 10th in UTC) and dated the 10th is backdated; the same moment dated the 11th is not", () => {
+    const at = "2026-11-10T19:00:00Z"; // 00:30 IST on 11 November
+    expect(list([row({ date: "2026-11-10", recordedAt: at })])).toContain(
+      "Backdated",
+    );
+    expect(list([row({ date: "2026-11-11", recordedAt: at })])).not.toContain(
+      "Backdated",
+    );
+  });
   it("PV-02: filters are a plain form with every filter the spec lists", () => {
     const out = list([row()]);
     expect(out).toContain('action="/payments"');
@@ -322,6 +348,27 @@ describe("one payment or refund (PV-06..)", () => {
     expect(has(out, "Reverse")).toBe(false);
     expect(t).not.toContain("Add correction file");
     expect(out).toContain('href="/payments/p1/edit"');
+  });
+  it("PV-06b: the detail page shows the Backdated tag next to the payment date when it was typed in later; a refund too", () => {
+    const late = text(
+      body(detail({ date: "2026-11-05", recordedAt: "2026-11-10T04:00:00Z" })),
+    );
+    expect(late).toContain("5 Nov 2026");
+    expect(late).toContain("Backdated entered 10 Nov 2026");
+    const refund = text(
+      body(
+        detail(
+          {
+            date: "2026-11-05",
+            recordedAt: "2026-11-10T04:00:00Z",
+            reason: "Guest left early",
+          },
+          "refund",
+        ),
+      ),
+    );
+    expect(refund).toContain("Backdated entered 10 Nov 2026");
+    expect(text(body(detail()))).not.toContain("Backdated");
   });
   it("PV-07: approving your own entry shows the orange note first (Q8); someone else's does not", () => {
     expect(text(body(detail({ recordedBy: "u1" }), "u1"))).toContain(

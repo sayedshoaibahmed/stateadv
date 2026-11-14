@@ -5,7 +5,7 @@ import { ErrorState } from "@/components/app/states";
 import { requireUser } from "@/lib/auth/session";
 import { loadFormOptions } from "@/lib/bookings/data";
 import { emptyForm } from "@/lib/bookings/form";
-import { todayIst } from "@/lib/dates";
+import { isIsoDate, todayIst } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Add booking" };
@@ -43,6 +43,17 @@ export default async function NewBookingPage({
         guestEmail: data.email ?? "",
       });
   }
+  // "Add Booking for this date" from the calendar: the check-in date (and the resort) are filled in
+  const checkinParam = Array.isArray(sp.checkin) ? sp.checkin[0] : sp.checkin;
+  if (checkinParam && isIsoDate(checkinParam))
+    initial.checkInDate = checkinParam;
+  const resortParam = Array.isArray(sp.resort) ? sp.resort[0] : sp.resort;
+  if (
+    resortParam &&
+    options.ok &&
+    options.data.resorts.some((r) => r.id === resortParam && r.active)
+  )
+    initial.resortId = resortParam;
   return (
     <main className="flex flex-1 flex-col gap-4 p-3 sm:p-4">
       <div>
