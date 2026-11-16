@@ -81,9 +81,18 @@ const deps: ResetDeps = {
       // "supabase_migrations" schema, so dropping only "public" leaves it believing every migration is
       // already applied, and `supabase db push` then reports "up to date" without rebuilding anything.
       // The CLI recreates this schema automatically on its next run.
+      //
+      // Re-grant what Supabase's own platform sets up ONCE when a project is first created (never part
+      // of our migrations, since every migration assumes it's already there): schema USAGE for the
+      // standard roles, and blanket table/function/sequence access for service_role (the secret key).
+      // A fresh "create schema public" does not carry any of this over.
       await client.query(
         "drop schema public cascade; create schema public; " +
-          "drop schema if exists supabase_migrations cascade;",
+          "drop schema if exists supabase_migrations cascade; " +
+          "grant usage on schema public to postgres, anon, authenticated, service_role; " +
+          "alter default privileges in schema public grant all on tables to postgres, service_role; " +
+          "alter default privileges in schema public grant all on functions to postgres, service_role; " +
+          "alter default privileges in schema public grant all on sequences to postgres, service_role;",
       );
     } finally {
       await client.end();
