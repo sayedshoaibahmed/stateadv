@@ -77,7 +77,14 @@ const deps: ResetDeps = {
     const client = new pg.Client({ connectionString: dbUrl });
     await client.connect();
     try {
-      await client.query("drop schema public cascade; create schema public;");
+      // Also drop the Supabase CLI's own migration-history tracking table: it lives in a separate
+      // "supabase_migrations" schema, so dropping only "public" leaves it believing every migration is
+      // already applied, and `supabase db push` then reports "up to date" without rebuilding anything.
+      // The CLI recreates this schema automatically on its next run.
+      await client.query(
+        "drop schema public cascade; create schema public; " +
+          "drop schema if exists supabase_migrations cascade;",
+      );
     } finally {
       await client.end();
     }
