@@ -38,8 +38,6 @@ const nextConfig: NextConfig = {
     "/**": ["./src/lib/pdf/fonts/*.ttf"],
   },
   reactStrictMode: true,
-  cacheComponents: true,
-  partialPrefetching: true,
   turbopack: {
     rules: {
       "*.css": {
