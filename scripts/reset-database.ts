@@ -83,8 +83,11 @@ const deps: ResetDeps = {
     }
   },
   async pushMigrations() {
+    // shell: true so Windows can resolve npx.cmd (execFileSync without it only finds real binaries,
+    // not the .cmd wrapper npm installs on Windows).
     execFileSync("npx", ["supabase", "db", "push", "--remote", "--yes"], {
       stdio: "inherit",
+      shell: true,
     });
   },
   async deleteAllAuthUsers() {
