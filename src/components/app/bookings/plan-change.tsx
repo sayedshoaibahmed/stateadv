@@ -168,6 +168,7 @@ export function PlanChangeSection({
           locked={locked}
           minDate={preview.today}
           heading="New payment plan rows"
+          bookingId={bookingId}
         />
       ) : null}
       {check &&

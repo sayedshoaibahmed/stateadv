@@ -21,6 +21,9 @@ export default async function NewBookingPage({
   const sp = await searchParams;
   const options = await loadFormOptions();
   const initial = emptyForm(todayIst());
+  // The pricing-method choice was removed from the form: every new booking is priced
+  // flat (tariff x people), with no automatic per-night multiplier.
+  initial.pricingMethod = "per_person_per_stay";
   // "New booking for this guest" from a guest page
   const guestParam = Array.isArray(sp.guest) ? sp.guest[0] : sp.guest;
   if (

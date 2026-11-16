@@ -19,6 +19,7 @@ vi.mock("@/lib/bookings/actions", () => ({
   quickAddCoEntryAction: vi.fn(),
   saveGuestAction: vi.fn(),
   saveProviderAction: vi.fn(),
+  verifyPlanAction: vi.fn(),
 }));
 
 vi.mock("@/lib/pdf/actions", () => ({
@@ -772,10 +773,10 @@ describe("the booking form (VW-19..)", () => {
       "1. Resort",
       "2. Guest",
       "3. Stay",
+      "Tariff per person",
       "4. Who brought this booking (C/O)",
-      "5. Amount",
       "Payment plan",
-      "Remarks",
+      "5. Remarks",
       "Save Booking",
     ])
       expect(t).toContain(s);
@@ -786,8 +787,9 @@ describe("the booking form (VW-19..)", () => {
     expect(out).toContain('value="2026-11-10"'); // booking date defaults to today
     expect(out).toContain('id="plan-amount-0"');
     expect(out).not.toMatch(/id="plan-amount-\d"[^>]*value="[1-9]/); // nothing suggested
-    expect(t).toContain("Per person per night");
-    expect(t).toContain("Per person per stay");
+    // the pricing-method choice was removed: every booking is priced flat (no per-night multiplier)
+    expect(t).not.toContain("Per person per night");
+    expect(t).not.toContain("Per person per stay");
     expect(t).toContain("Agent");
     expect(t).toContain("Direct");
   });

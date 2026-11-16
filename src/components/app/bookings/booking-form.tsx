@@ -353,22 +353,9 @@ export function BookingForm({
         )}
       </fieldset>
 
-      {/* 3. Stay */}
+      {/* 3. Stay (includes the Amount and the Payment plan) */}
       <fieldset className="grid gap-3">
         <legend className="text-lg font-semibold">3. Stay</legend>
-        <OptionPicker
-          name="stayTypeId"
-          label="Stay type"
-          required
-          options={options.stayTypes.map((s) => ({
-            id: String(s.id),
-            label: s.name,
-            active: s.active,
-          }))}
-          value={v.stayTypeId || null}
-          onChange={(id) => set({ stayTypeId: id ? String(id) : "" })}
-          error={errors.stayTypeId}
-        />
         <div className="grid gap-1">
           <Label htmlFor="bookingDate">Booking date</Label>
           <Input
@@ -445,144 +432,37 @@ export function BookingForm({
             <Err id="checkOutTime-err" text={errors.checkOutTime} />
           </div>
         </div>
-        <div className="grid gap-1 sm:max-w-56">
-          <Label htmlFor="pax">Number of people (PAX)</Label>
-          <Input
-            id="pax"
-            inputMode="numeric"
-            value={v.pax}
-            onChange={(e) => set({ pax: e.target.value })}
-            aria-invalid={errors.pax ? true : undefined}
-            className={field}
-          />
-          <Err id="pax-err" text={errors.pax} />
-        </div>
         {nights !== null && nights >= 0 ? (
           <p className="text-sm text-muted-foreground" data-testid="nights">
             {nightsText(nights)} (worked out from the dates)
           </p>
         ) : null}
-      </fieldset>
-
-      {/* 4. C/O */}
-      <fieldset className="grid gap-3">
-        <legend className="text-lg font-semibold">
-          4. Who brought this booking (C/O)
-        </legend>
-        <div
-          className="grid grid-cols-2 gap-3 sm:grid-cols-4"
-          role="group"
-          aria-label="C/O type"
-        >
-          {activeCategories.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              aria-pressed={String(c.id) === v.coCategoryId}
-              className={toggle(String(c.id) === v.coCategoryId)}
-              onClick={() => chooseCategory(c.id)}
-            >
-              {c.name}
-            </button>
-          ))}
-        </div>
-        <Err id="coCategoryId-err" text={errors.coCategoryId} />
-        {category?.nameMode === "listed" ? (
-          <div className="grid gap-2">
-            <OptionPicker
-              key={`${category.id}-${pickerKey}`}
-              name="coEntryId"
-              label={`${category.name} name`}
-              options={pickerOptions}
-              value={v.coEntryId}
-              onChange={(id) => set({ coEntryId: id ? String(id) : null })}
-              placeholder="Type to search"
-            />
-            {!adding ? (
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(field, "justify-self-start")}
-                onClick={() => setAdding(true)}
-              >
-                + Add a new {category.name.toLowerCase()}
-              </Button>
-            ) : (
-              <div className="grid gap-2 rounded-lg border p-3">
-                <Label htmlFor="newCoName">
-                  New {category.name.toLowerCase()} name
-                </Label>
-                <Input
-                  id="newCoName"
-                  value={newName}
-                  maxLength={120}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className={field}
-                />
-                {addMessage ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {addMessage}
-                  </p>
-                ) : null}
-                <div className="flex gap-2">
-                  <Button type="button" className={field} onClick={addEntry}>
-                    Add
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={field}
-                    onClick={() => setAdding(false)}
-                  >
-                    Not now
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : null}
-        {category?.nameMode === "typed" ? (
+        <div className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1">
-            <Label htmlFor="coName">Person / source name</Label>
+            <Label htmlFor="pax">Number of people (PAX)</Label>
             <Input
-              id="coName"
-              value={v.coName}
-              maxLength={120}
-              onChange={(e) => set({ coName: e.target.value })}
+              id="pax"
+              inputMode="numeric"
+              value={v.pax}
+              onChange={(e) => set({ pax: e.target.value })}
+              aria-invalid={errors.pax ? true : undefined}
               className={field}
             />
+            <Err id="pax-err" text={errors.pax} />
           </div>
-        ) : null}
-      </fieldset>
-
-      {/* 5. Amount */}
-      <fieldset className="grid gap-3">
-        <legend className="text-lg font-semibold">5. Amount</legend>
-        <div className="grid gap-2">
-          <p className="font-medium">Pricing method</p>
-          <div
-            className="grid gap-3 sm:grid-cols-2"
-            role="group"
-            aria-label="Pricing method"
-          >
-            {(
-              [
-                ["per_person_per_night", "Per person per night"],
-                ["per_person_per_stay", "Per person per stay"],
-              ] as const
-            ).map(([k, label]) => (
-              <button
-                key={k}
-                type="button"
-                aria-pressed={v.pricingMethod === k}
-                className={toggle(v.pricingMethod === k)}
-                onClick={() => set({ pricingMethod: k })}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <Err id="pricingMethod-err" text={errors.pricingMethod} />
+          <OptionPicker
+            name="stayTypeId"
+            label="Stay type"
+            required
+            options={options.stayTypes.map((s) => ({
+              id: String(s.id),
+              label: s.name,
+              active: s.active,
+            }))}
+            value={v.stayTypeId || null}
+            onChange={(id) => set({ stayTypeId: id ? String(id) : "" })}
+            error={errors.stayTypeId}
+          />
         </div>
         <div className="grid gap-1 sm:max-w-64">
           <Label htmlFor="tariff">Tariff per person (₹)</Label>
@@ -720,53 +600,141 @@ export function BookingForm({
             </Button>
           </div>
         )}
+
+        {mode === "create" ? (
+          <div className="grid gap-2">
+            <PlanEditor
+              idPrefix="plan"
+              rows={v.plan}
+              onChange={(plan) => set({ plan })}
+              check={planCheck}
+            />
+            <Err
+              id="plan-err"
+              text={
+                errors.plan && planCheck?.state === "ok" ? errors.plan : undefined
+              }
+            />
+            <p className="text-sm text-muted-foreground">
+              Both amounts start empty. Fill them in so the plan adds up to the
+              Final Booking Amount.
+            </p>
+          </div>
+        ) : amountChanged && edit ? (
+          <PlanChangeSection
+            idPrefix="editplan"
+            bookingId={edit.bookingId}
+            newAmountDuePaise={amounts.ok ? amounts.finalPaise : null}
+            locked={lockedPlan}
+            rows={v.plan}
+            onRows={(plan: PlanRowInput[]) => set({ plan })}
+            reason={v.changeReason}
+            onCheck={(c, m) => {
+              setEditCheck(c);
+              setMovePaise(m);
+            }}
+            highlight="Final Amount changed. Please update the payment plan."
+          />
+        ) : null}
+        {errors.plan && mode === "edit" ? (
+          <Err id="plan-err2" text={errors.plan} />
+        ) : null}
       </fieldset>
 
-      {/* 6. Payment plan */}
-      {mode === "create" ? (
-        <div className="grid gap-2">
-          <PlanEditor
-            idPrefix="plan"
-            rows={v.plan}
-            onChange={(plan) => set({ plan })}
-            check={planCheck}
-          />
-          <Err
-            id="plan-err"
-            text={
-              errors.plan && planCheck?.state === "ok" ? errors.plan : undefined
-            }
-          />
-          <p className="text-sm text-muted-foreground">
-            Both amounts start empty. Fill them in so the plan adds up to the
-            Final Booking Amount.
-          </p>
-        </div>
-      ) : amountChanged && edit ? (
-        <PlanChangeSection
-          idPrefix="editplan"
-          bookingId={edit.bookingId}
-          newAmountDuePaise={amounts.ok ? amounts.finalPaise : null}
-          locked={lockedPlan}
-          rows={v.plan}
-          onRows={(plan: PlanRowInput[]) => set({ plan })}
-          reason={v.changeReason}
-          onCheck={(c, m) => {
-            setEditCheck(c);
-            setMovePaise(m);
-          }}
-          highlight="Final Amount changed. Please update the payment plan."
-        />
-      ) : null}
-      {errors.plan && mode === "edit" ? (
-        <Err id="plan-err2" text={errors.plan} />
-      ) : null}
-
-      {/* 7. Remarks */}
-      <fieldset className="grid gap-2">
+      {/* 4. C/O */}
+      <fieldset className="grid gap-3">
         <legend className="text-lg font-semibold">
-          {mode === "create" ? "7. Remarks" : "6. Remarks"}
+          4. Who brought this booking (C/O)
         </legend>
+        <div
+          className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+          role="group"
+          aria-label="C/O type"
+        >
+          {activeCategories.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              aria-pressed={String(c.id) === v.coCategoryId}
+              className={toggle(String(c.id) === v.coCategoryId)}
+              onClick={() => chooseCategory(c.id)}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+        <Err id="coCategoryId-err" text={errors.coCategoryId} />
+        {category?.nameMode === "listed" ? (
+          <div className="grid gap-2">
+            <OptionPicker
+              key={`${category.id}-${pickerKey}`}
+              name="coEntryId"
+              label={`${category.name} name`}
+              options={pickerOptions}
+              value={v.coEntryId}
+              onChange={(id) => set({ coEntryId: id ? String(id) : null })}
+              placeholder="Type to search"
+            />
+            {!adding ? (
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(field, "justify-self-start")}
+                onClick={() => setAdding(true)}
+              >
+                + Add a new {category.name.toLowerCase()}
+              </Button>
+            ) : (
+              <div className="grid gap-2 rounded-lg border p-3">
+                <Label htmlFor="newCoName">
+                  New {category.name.toLowerCase()} name
+                </Label>
+                <Input
+                  id="newCoName"
+                  value={newName}
+                  maxLength={120}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className={field}
+                />
+                {addMessage ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {addMessage}
+                  </p>
+                ) : null}
+                <div className="flex gap-2">
+                  <Button type="button" className={field} onClick={addEntry}>
+                    Add
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={field}
+                    onClick={() => setAdding(false)}
+                  >
+                    Not now
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+        {category?.nameMode === "typed" ? (
+          <div className="grid gap-1">
+            <Label htmlFor="coName">Person / source name</Label>
+            <Input
+              id="coName"
+              value={v.coName}
+              maxLength={120}
+              onChange={(e) => set({ coName: e.target.value })}
+              className={field}
+            />
+          </div>
+        ) : null}
+      </fieldset>
+
+      {/* 5. Remarks */}
+      <fieldset className="grid gap-2">
+        <legend className="text-lg font-semibold">5. Remarks</legend>
         <Textarea
           id="remarks"
           aria-label="Remarks"
@@ -776,7 +744,7 @@ export function BookingForm({
         />
       </fieldset>
 
-      {/* 8. Reason for change (edit) */}
+      {/* Reason for change (edit) */}
       {mode === "edit" ? (
         <div className="grid gap-1">
           <Label htmlFor="changeReason">

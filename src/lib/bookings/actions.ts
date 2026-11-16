@@ -179,6 +179,23 @@ export async function updateBookingAction(
   };
 }
 
+/** How much of this booking's plan is actually backed by approved money, for the "Verify" button on each plan row. */
+export async function verifyPlanAction(
+  bookingId: string,
+): Promise<ActionResult<{ netCollectedPaise: number }>> {
+  await requireUser();
+  if (!/^[0-9a-f-]{36}$/i.test(bookingId))
+    return fail("Save the booking first to verify payments.");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("booking_financials")
+    .select("net_collection_paise")
+    .eq("booking_id", bookingId)
+    .maybeSingle();
+  if (error) return fail("We could not check the payments. Please try again.");
+  return { ok: true, netCollectedPaise: data?.net_collection_paise ?? 0 };
+}
+
 export async function setStatusAction(input: unknown): Promise<ActionResult> {
   await requireUser();
   const p = statusSchema.safeParse(input);
