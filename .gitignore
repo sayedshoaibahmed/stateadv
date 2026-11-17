@@ -67,3 +67,5 @@ next-env.d.ts
 !.vscode/extensions.json
 .idea/
 .verify/
+
+.vercel
