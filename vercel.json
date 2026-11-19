@@ -1,3 +1,4 @@
 {
+  "regions": ["bom1"],
   "crons": [{ "path": "/api/cron/pdf-retry", "schedule": "0 0 * * *" }]
 }
